@@ -11,12 +11,13 @@ import {
   Platform,
 } from "react-native";
 import Constants from "expo-constants";
-import { Globe, User, ShieldAlert, Smartphone, RefreshCw, Zap, Check, CheckCircle2, Info } from "lucide-react-native";
+import { Globe, User, ShieldAlert, Smartphone, RefreshCw, Zap, Check, CheckCircle2, Info, DownloadCloud } from "lucide-react-native";
 import { THEME } from "../constants/theme";
 import { StorageService } from "../services/storage";
 import { ApiService } from "../services/api";
 import { TelephonyService } from "../services/telephony";
 import { AppSettings, WEGROW_STAFF_MEMBERS } from "../types";
+import { AppUpdateModal } from "../components/AppUpdateModal";
 
 export const SettingsScreen: React.FC = () => {
   const isExpoGo = Constants.appOwnership === "expo";
@@ -28,6 +29,9 @@ export const SettingsScreen: React.FC = () => {
   const [testingJobz, setTestingJobz] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [isDefaultDialer, setIsDefaultDialer] = useState(false);
+  const [currentAppVersion, setCurrentAppVersion] = useState("1.0.0");
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateModalData, setUpdateModalData] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
@@ -48,8 +52,30 @@ export const SettingsScreen: React.FC = () => {
       setPendingCount(pending.length);
       const isDef = await TelephonyService.checkIsDefaultDialer();
       setIsDefaultDialer(isDef);
+
+      const vInfo = await TelephonyService.getAppVersionInfo();
+      if (vInfo?.versionName) setCurrentAppVersion(vInfo.versionName);
     })();
   }, []);
+
+  const handleCheckUpdateManual = async () => {
+    try {
+      setCheckingUpdate(true);
+      const res = await ApiService.checkAppUpdate();
+      setCheckingUpdate(false);
+      if (res && res.hasUpdate) {
+        setUpdateModalData(res);
+      } else {
+        Alert.alert(
+          "App Up-to-Date! ✅",
+          `You are already using the latest version (v${currentAppVersion}). No update required!`
+        );
+      }
+    } catch (err: any) {
+      setCheckingUpdate(false);
+      Alert.alert("Check Failed", "Unable to reach update server. Check Wi-Fi or server connection.");
+    }
+  };
 
   const handleSetDefaultDialer = async () => {
     if (isExpoGo) {
@@ -380,6 +406,41 @@ export const SettingsScreen: React.FC = () => {
         </View>
       </View>
 
+      {/* App Version & In-App Auto Update */}
+      <View style={styles.card}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <DownloadCloud size={16} color="#2563EB" />
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#1E293B" }}>App Version & Updates</Text>
+            </View>
+            <Text style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+              Installed: v{currentAppVersion} • In-App One-Click Updater
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={{
+              backgroundColor: checkingUpdate ? "#94A3B8" : "#2563EB",
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 8,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+            }}
+            onPress={handleCheckUpdateManual}
+            disabled={checkingUpdate}
+            activeOpacity={0.8}
+          >
+            {checkingUpdate ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 11 }}>Check Update</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Save Button */}
       <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -387,6 +448,19 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.saveBtnText}>Save Settings</Text>
         </View>
       </TouchableOpacity>
+
+      {/* In-App Update Modal */}
+      {updateModalData?.hasUpdate && (
+        <AppUpdateModal
+          visible={!!updateModalData}
+          latestVersion={updateModalData.latestVersion || "1.0.2"}
+          currentVersion={currentAppVersion}
+          releaseNotes={updateModalData.releaseNotes || []}
+          apkUrl={updateModalData.apkUrl || ""}
+          forceUpdate={updateModalData.forceUpdate}
+          onDismiss={() => setUpdateModalData(null)}
+        />
+      )}
     </ScrollView>
   );
 };

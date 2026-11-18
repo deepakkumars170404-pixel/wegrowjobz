@@ -1,21 +1,27 @@
 package com.wegrow.telecaller
 
 import android.app.role.RoleManager
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.telecom.TelecomManager
 import android.util.Log
+import androidx.core.content.FileProvider
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import java.io.File
 
 class WegrowTelephonyModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext), WegrowInCallService.Companion.CallStateListener {
@@ -408,6 +414,107 @@ class WegrowTelephonyModule(private val reactContext: ReactApplicationContext) :
             promise.resolve(null)
         } catch (e: Exception) {
             promise.resolve(null)
+        }
+    }
+
+    @ReactMethod
+    fun getAppVersionInfo(promise: Promise) {
+        try {
+            val pInfo = reactContext.packageManager.getPackageInfo(reactContext.packageName, 0)
+            val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pInfo.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                pInfo.versionCode.toLong()
+            }
+            val map = Arguments.createMap().apply {
+                putDouble("versionCode", versionCode.toDouble())
+                putString("versionName", pInfo.versionName ?: "1.0.0")
+                putString("packageName", reactContext.packageName)
+            }
+            promise.resolve(map)
+        } catch (e: Exception) {
+            promise.reject("VERSION_ERROR", e.message)
+        }
+    }
+
+    @ReactMethod
+    fun downloadAndInstallApk(apkUrl: String, promise: Promise) {
+        try {
+            val fileName = "WegrowTelecaller_Update_${System.currentTimeMillis()}.apk"
+            val downloadsDir = reactContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            
+            // Clean up old update APKs
+            downloadsDir?.listFiles()?.forEach { file ->
+                if (file.name.startsWith("WegrowTelecaller_Update") && file.name.endsWith(".apk")) {
+                    file.delete()
+                }
+            }
+
+            val destinationFile = File(downloadsDir, fileName)
+
+            val request = DownloadManager.Request(Uri.parse(apkUrl)).apply {
+                setTitle("WeGrow Telecaller Update")
+                setDescription("Downloading latest update...")
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationUri(Uri.fromFile(destinationFile))
+                setMimeType("application/vnd.android.package-archive")
+            }
+
+            val downloadManager = reactContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            val downloadId = downloadManager.enqueue(request)
+
+            val onComplete = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    try {
+                        reactContext.unregisterReceiver(this)
+                    } catch (_: Exception) {}
+
+                    val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) ?: -1
+                    if (id == downloadId && destinationFile.exists()) {
+                        triggerApkInstall(destinationFile)
+                    }
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                reactContext.registerReceiver(
+                    onComplete,
+                    IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                    Context.RECEIVER_NOT_EXPORTED
+                )
+            } else {
+                reactContext.registerReceiver(
+                    onComplete,
+                    IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+                )
+            }
+
+            promise.resolve(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in downloadAndInstallApk: ${e.message}", e)
+            promise.reject("DOWNLOAD_ERROR", e.message)
+        }
+    }
+
+    private fun triggerApkInstall(file: File) {
+        try {
+            val context = reactContext
+            val contentUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.provider",
+                file
+            )
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(contentUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error launching package installer: ${e.message}", e)
         }
     }
 }

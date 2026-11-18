@@ -27,6 +27,7 @@ import { CallModal } from "./src/screens/CallModal";
 import { TelecallerHeader } from "./src/components/TelecallerHeader";
 import { StaffSelectModal } from "./src/components/StaffSelectModal";
 import { PunchOutReportModal } from "./src/components/PunchOutReportModal";
+import { AppUpdateModal } from "./src/components/AppUpdateModal";
 import { Lead, StaffMember, AppMode, AttendanceRecord, CallRecord } from "./src/types";
 import { ApiService } from "./src/services/api";
 import { StorageService } from "./src/services/storage";
@@ -55,6 +56,17 @@ export default function App() {
   const [isPunchOutModalVisible, setIsPunchOutModalVisible] = useState<boolean>(false);
   const [todayCallsForReport, setTodayCallsForReport] = useState<CallRecord[]>([]);
 
+  // In-App Auto Update States
+  const [updateInfo, setUpdateInfo] = useState<{
+    hasUpdate: boolean;
+    latestVersion?: string;
+    currentVersion?: string;
+    releaseNotes?: string[];
+    apkUrl?: string;
+    forceUpdate?: boolean;
+  } | null>(null);
+  const [isUpdateModalVisible, setIsUpdateModalVisible] = useState<boolean>(false);
+
   const isCallingRef = useRef<boolean>(false);
 
   // Initialize App Mode, Settings and Attendance Gate
@@ -81,6 +93,17 @@ export default function App() {
 
       // Sync offline calls in background
       ApiService.syncPendingCalls().catch(() => {});
+
+      // Check for In-App Updates on Launch
+      setTimeout(async () => {
+        try {
+          const update = await ApiService.checkAppUpdate();
+          if (update && update.hasUpdate) {
+            setUpdateInfo(update);
+            setIsUpdateModalVisible(true);
+          }
+        } catch {}
+      }, 1500);
     })();
   }, []);
 
@@ -258,14 +281,26 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
-        {/* Change Staff Shortcut */}
-        <TouchableOpacity
-          style={styles.switchStaffBtn}
-          onPress={() => setIsStaffSelectVisible(true)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.switchStaffText}>👤 {activeStaff}</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {updateInfo?.hasUpdate && (
+            <TouchableOpacity
+              style={styles.updateBadgeBtn}
+              onPress={() => setIsUpdateModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.updateBadgeText}>Update 🚀</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Change Staff Shortcut */}
+          <TouchableOpacity
+            style={styles.switchStaffBtn}
+            onPress={() => setIsStaffSelectVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.switchStaffText}>👤 {activeStaff}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Clean Telecaller Status Bar (No Target Bar, No Idle Timer) */}
@@ -334,6 +369,19 @@ export default function App() {
         todayCalls={todayCallsForReport}
         onClose={() => setIsPunchOutModalVisible(false)}
       />
+
+      {/* In-App Auto Update Modal (Play Store style one-click installer) */}
+      {updateInfo?.hasUpdate && (
+        <AppUpdateModal
+          visible={isUpdateModalVisible}
+          latestVersion={updateInfo.latestVersion || "1.0.2"}
+          currentVersion={updateInfo.currentVersion || "1.0.0"}
+          releaseNotes={updateInfo.releaseNotes || []}
+          apkUrl={updateInfo.apkUrl || ""}
+          forceUpdate={updateInfo.forceUpdate}
+          onDismiss={() => setIsUpdateModalVisible(false)}
+        />
+      )}
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
@@ -419,6 +467,19 @@ const styles = StyleSheet.create({
   },
   modeBtnTextActive: {
     color: "#FFFFFF",
+  },
+  updateBadgeBtn: {
+    backgroundColor: "#DCFCE7",
+    borderWidth: 1,
+    borderColor: "#86EFAC",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  updateBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#15803D",
   },
   switchStaffBtn: {
     backgroundColor: "#EFF6FF",

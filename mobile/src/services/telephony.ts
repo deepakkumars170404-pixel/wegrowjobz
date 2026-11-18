@@ -293,4 +293,31 @@ export const TelephonyService = {
       Alert.alert("Error", "WhatsApp is not installed on this device.");
     });
   },
+
+  async getAppVersionInfo(): Promise<{ versionCode: number; versionName: string; packageName: string } | null> {
+    if (Platform.OS === "android" && WegrowTelephony?.getAppVersionInfo) {
+      try {
+        return await WegrowTelephony.getAppVersionInfo();
+      } catch (e) {
+        console.warn("getAppVersionInfo error:", e);
+      }
+    }
+    return { versionCode: 1, versionName: "1.0.0", packageName: "com.wegrow.telecaller" };
+  },
+
+  async downloadAndInstallApk(apkUrl: string): Promise<boolean> {
+    if (Platform.OS === "android" && WegrowTelephony?.downloadAndInstallApk) {
+      try {
+        await WegrowTelephony.downloadAndInstallApk(apkUrl);
+        return true;
+      } catch (err: any) {
+        console.warn("downloadAndInstallApk error:", err);
+        // Fallback to browser download
+        Linking.openURL(apkUrl).catch(() => {});
+        return false;
+      }
+    }
+    Linking.openURL(apkUrl).catch(() => {});
+    return true;
+  },
 };

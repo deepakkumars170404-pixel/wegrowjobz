@@ -1,6 +1,7 @@
 import { CallRecord, Lead } from "../types";
 import { StorageService } from "./storage";
 import { supabaseMobile, isSupabaseReady } from "./supabase";
+import { TelephonyService } from "./telephony";
 
 export const ApiService = {
   async getBaseUrl(): Promise<string> {
@@ -770,5 +771,51 @@ export const ApiService = {
     } catch {}
 
     return null;
+  },
+
+  async checkAppUpdate(): Promise<{
+    hasUpdate: boolean;
+    latestVersion?: string;
+    latestVersionCode?: number;
+    currentVersion?: string;
+    currentVersionCode?: number;
+    releaseNotes?: string[];
+    apkUrl?: string;
+    forceUpdate?: boolean;
+  }> {
+    try {
+      const baseUrl = await this.getBaseUrl();
+      const current = await TelephonyService.getAppVersionInfo();
+      const currentCode = current?.versionCode || 1;
+      const currentName = current?.versionName || "1.0.0";
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const res = await fetch(`${baseUrl}/api/app-version`, {
+        signal: controller.signal,
+        headers: { "Cache-Control": "no-cache" },
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) return { hasUpdate: false, currentVersion: currentName, currentVersionCode: currentCode };
+
+      const data = await res.json();
+      const latestCode = Number(data.versionCode || 1);
+      const hasUpdate = latestCode > currentCode;
+
+      return {
+        hasUpdate,
+        latestVersion: data.versionName || "1.0.1",
+        latestVersionCode: latestCode,
+        currentVersion: currentName,
+        currentVersionCode: currentCode,
+        releaseNotes: data.releaseNotes || [],
+        apkUrl: data.apkUrl || data.fallbackApkUrl || `${baseUrl}/api/download-apk`,
+        forceUpdate: !!data.forceUpdate,
+      };
+    } catch (e) {
+      return { hasUpdate: false };
+    }
   },
 };
