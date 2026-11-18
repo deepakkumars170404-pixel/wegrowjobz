@@ -333,9 +333,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .catch(() => {});
 
     // Supabase Cloud Realtime Channel for instant live updates across devices (Jobz tables)
+    let channel: any = null;
     const sb = supabase;
     if (isSupabaseConfigured() && sb) {
-      const channel = sb
+      channel = sb
         .channel("realtime:crm-jobz-live")
         .on(
           "postgres_changes",
@@ -363,11 +364,49 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         )
         .subscribe();
-
-      return () => {
-        sb.removeChannel(channel);
-      };
     }
+
+    // Auto-sync polling every 3 seconds so calls/leads saved on Mobile App instantly appear on Web CRM
+    const syncInterval = setInterval(() => {
+      fetch("/api/leads", { cache: "no-store" })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && Array.isArray(data.leads)) {
+            setLeads((prev) => {
+              if (prev.length !== data.leads.length || JSON.stringify(prev) !== JSON.stringify(data.leads)) {
+                try {
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem(LOCAL_STORAGE_LEADS_KEY, JSON.stringify(data.leads));
+                  }
+                } catch {}
+                return data.leads;
+              }
+              return prev;
+            });
+          }
+          if (data && Array.isArray(data.followUps)) {
+            setFollowUps((prev) => {
+              if (prev.length !== data.followUps.length || JSON.stringify(prev) !== JSON.stringify(data.followUps)) {
+                try {
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem(LOCAL_STORAGE_FOLLOWUPS_KEY, JSON.stringify(data.followUps));
+                  }
+                } catch {}
+                return data.followUps;
+              }
+              return prev;
+            });
+          }
+        })
+        .catch(() => {});
+    }, 3000);
+
+    return () => {
+      clearInterval(syncInterval);
+      if (sb && channel) {
+        sb.removeChannel(channel);
+      }
+    };
   }, []);
 
   // Helper to persist leads to localStorage and backend

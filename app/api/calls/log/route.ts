@@ -69,6 +69,9 @@ export async function POST(request: Request) {
       callerName = "Staff",
       disposition = "Interested",
       courseInterested = "",
+      preferredDomain = "",
+      experienceYears = "",
+      expectedSalary = "",
       qualification = "",
       passedOutYear = "",
       collegeName = "",
@@ -79,39 +82,17 @@ export async function POST(request: Request) {
       nextFollowUpTime,
     } = body;
 
-    let durationSeconds = Number(body.durationSeconds) || 0;
-
     const { leads, followUps } = ensureStorage();
 
     const cleanInputPhone = String(phone || "").replace(/\D/g, "");
 
-    // Query mobile bridge for true hardware call duration & exact start/end time
-    let hardwareStartTimeStr = callStartTime || "";
-    let hardwareEndTimeStr = callEndTime || "";
-    let hardwareDateStr = "";
-
-    try {
-      const bridgeStatus = await MobileBridge.getStatus();
-      if (bridgeStatus && bridgeStatus.lastCallDurationSeconds && bridgeStatus.lastCallDurationSeconds > 0) {
-        const lastNum = String(bridgeStatus.lastCallNumber || "").replace(/\D/g, "");
-        if (!cleanInputPhone || lastNum.endsWith(cleanInputPhone.slice(-10)) || cleanInputPhone.endsWith(lastNum.slice(-10))) {
-          durationSeconds = bridgeStatus.lastCallDurationSeconds || durationSeconds;
-          if (bridgeStatus.lastCallStartTime && bridgeStatus.lastCallEndTime) {
-            hardwareStartTimeStr = hardwareStartTimeStr || bridgeStatus.lastCallStartTime;
-            hardwareEndTimeStr = hardwareEndTimeStr || bridgeStatus.lastCallEndTime;
-            if (bridgeStatus.lastCallTimestamp) {
-              hardwareDateStr = new Date(bridgeStatus.lastCallTimestamp).toISOString().split("T")[0];
-            }
-          }
-        }
-      }
-    } catch {}
-
+    // Use exact start time, end time, and duration provided by mobile device
+    let durationSeconds = Number(body.durationSeconds) || 0;
     const endNow = new Date();
     const startNow = new Date(endNow.getTime() - Math.max(1, durationSeconds) * 1000);
-    const dateStr = hardwareDateStr || endNow.toISOString().split("T")[0];
-    const fromTime = hardwareStartTimeStr || startNow.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    const endTime = hardwareEndTimeStr || endNow.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const dateStr = endNow.toISOString().split("T")[0];
+    const fromTime = callStartTime || startNow.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const endTime = callEndTime || endNow.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const formattedDuration = formatTimer(durationSeconds);
     const durationLong = formatHumanDuration(durationSeconds);
 
@@ -251,7 +232,10 @@ export async function POST(request: Request) {
       updatedLeads[matchedLeadIndex] = {
         ...existing,
         studentName: resolvedStudentName || existing.studentName,
-        courseInterested: courseInterested || existing.courseInterested,
+        courseInterested: courseInterested || preferredDomain || existing.courseInterested,
+        preferredDomain: preferredDomain || courseInterested || (existing as any).preferredDomain,
+        experienceYears: experienceYears || (existing as any).experienceYears,
+        expectedSalary: expectedSalary || (existing as any).expectedSalary,
         assignedCaller: callerName,
         status: mappedStatus,
         stage: mappedStage,
@@ -279,7 +263,10 @@ export async function POST(request: Request) {
         endTime: endTime,
         outcome: isAttended ? "Attended Call" : "Not Attended Call",
         mindset: disposition,
-        courseInterested: courseInterested || "General Enquiry",
+        courseInterested: courseInterested || preferredDomain || "General Enquiry",
+        preferredDomain: preferredDomain || courseInterested || "IT / Software",
+        experienceYears: experienceYears || "Fresher",
+        expectedSalary: expectedSalary || "",
         qualification: qualification || "",
         passedOutYear: passedOutYear || "",
         collegeName: collegeName || "",
@@ -292,7 +279,10 @@ export async function POST(request: Request) {
         studentName: studentName || `Inquiry Student (${cleanInputPhone.slice(-10)})`,
         phone: cleanInputPhone.slice(-10),
         email: "direct@mobile.local",
-        courseInterested: courseInterested || "General Enquiry",
+        courseInterested: courseInterested || preferredDomain || "General Enquiry",
+        preferredDomain: preferredDomain || courseInterested || "IT / Software",
+        experienceYears: experienceYears || "Fresher",
+        expectedSalary: expectedSalary || "",
         leadSource: "Phone",
         assignedCaller: callerName,
         priority: "Hot",

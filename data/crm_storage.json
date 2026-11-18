@@ -1,5 +1,54 @@
 {
-  "leads": [],
+  "leads": [
+    {
+      "id": "LD-MOB-1795029850010",
+      "studentName": "Deepak Kumar",
+      "phone": "9876543210",
+      "email": "direct@mobile.local",
+      "courseInterested": "General Enquiry",
+      "preferredDomain": "IT / Software",
+      "experienceYears": "Fresher",
+      "expectedSalary": "",
+      "leadSource": "Phone",
+      "assignedCaller": "MuthuSelvi",
+      "priority": "Hot",
+      "status": "Interested",
+      "stage": "Interested",
+      "enquiryDate": "2026-11-18",
+      "qualification": "",
+      "passedOutYear": "",
+      "collegeName": "",
+      "nextFollowUpDate": "",
+      "nextFollowUpTime": "",
+      "callCount": 1,
+      "lastCallDate": "2026-11-18",
+      "lastCallOutcome": "Interested",
+      "notes": [],
+      "callHistory": [
+        {
+          "id": "cr-mob-1795029850010",
+          "callDate": "2026-11-18",
+          "callTime": "12:53:59 am",
+          "callerName": "MuthuSelvi",
+          "duration": "00:10",
+          "durationFormatted": "10 seconds",
+          "fromTime": "12:53:59 am",
+          "endTime": "12:54:09 am",
+          "outcome": "Attended Call",
+          "mindset": "Interested",
+          "courseInterested": "General Enquiry",
+          "preferredDomain": "IT / Software",
+          "experienceYears": "Fresher",
+          "expectedSalary": "",
+          "qualification": "",
+          "passedOutYear": "",
+          "collegeName": "",
+          "studentName": "Deepak Kumar",
+          "remarks": "Interested in Python"
+        }
+      ]
+    }
+  ],
   "followUps": [],
-  "savedAt": "2026-11-18T18:00:00.000Z"
+  "savedAt": "2026-11-18T19:24:10.010Z"
 }

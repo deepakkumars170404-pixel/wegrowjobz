@@ -1,18 +1,59 @@
 // Job Domains, Experience Levels, and Technical Positions for WeGrow Jobz CRM
 
-export const JOB_DOMAINS = [
-  "IT & Software Development",
-  "Full Stack Web Development",
-  "Python / Django Development",
-  "React / React Native Development",
-  "Data Science & Analytics",
-  "Digital Marketing & SEO",
-  "UI / UX Design",
-  "Telecalling & Inside Sales",
-  "HR / Recruitment & Admin",
-  "Customer Support / BPO",
-  "Finance & Accounting",
-] as const;
+export const ALL_JOB_ROLES: string[] = [
+  // IT & Software
+  "Full Stack Web Developer (React / Node / Python)",
+  "Front End Developer (HTML, CSS, React.js)",
+  "Back End Developer (Python / Django / Node.js)",
+  "Python Developer",
+  "React / React Native Developer",
+  "Java / Spring Boot Developer",
+  "Flutter Mobile App Developer",
+  "Software Tester / Manual & Automation QA",
+  "Data Analyst & Power BI Executive",
+  "Data Scientist & AI / ML Engineer",
+  "SQL / Database Administrator (DBA)",
+  "Cloud & DevOps Engineer (AWS / Azure)",
+  "Cyber Security Analyst",
+  "Network & Hardware Desktop Engineer",
+  "UI / UX Designer (Figma / Web)",
+
+  // Telecalling & BPO
+  "Telecaller / Tele-Marketing Executive",
+  "Inside Sales Executive (Voice)",
+  "Customer Support Executive (Voice / Non-Voice)",
+  "BPO Team Leader / Operations Supervisor",
+  "Quality Analyst (QA - BPO Voice)",
+  "Medical Billing / AR Caller",
+  "Client Relationship Executive (CRE)",
+
+  // Marketing & Sales
+  "Digital Marketing Specialist (SEO / SEM)",
+  "Social Media & Meta Ads Manager",
+  "Performance Marketing & Google Ads Executive",
+  "Field Sales & Business Development Executive (BDE)",
+  "Corporate Sales Manager",
+  "Graphic Designer & Social Media Post Creator",
+  "Video Editor & Content Creator (Premiere / CapCut)",
+  "Copywriter & Content Writer",
+
+  // Finance & Accounts
+  "Accountant (Tally Prime & GST / TDS)",
+  "Senior Accountant & Audit Assistant",
+  "Accounts Assistant / Billing Executive",
+  "Financial Analyst / MIS Executive",
+  "Banking & Loan Operations Executive",
+
+  // HR, Admin & Operations
+  "HR Recruiter / Talent Acquisition Specialist",
+  "HR Generalist & Payroll Executive",
+  "Office Admin & Front Office Coordinator",
+  "Executive Assistant to Director",
+  "Logistics & Supply Chain Coordinator",
+  "Store In-charge & Inventory Executive",
+];
+
+export const JOB_DOMAINS = ALL_JOB_ROLES;
 
 export const EXPERIENCE_LEVELS = [
   "Fresher (0 - 6 Months)",

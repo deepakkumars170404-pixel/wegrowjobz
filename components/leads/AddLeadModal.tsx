@@ -4,7 +4,8 @@ import React, { useState } from "react";
 import { X, UserPlus, Briefcase, Sparkles, Building2, Phone, Mail, MapPin, DollarSign, Clock, Award } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
 import { LeadPriority, LeadStatus, WEGROW_STAFF_MEMBERS } from "@/types";
-import { WEGROW_JOB_DOMAINS } from "@/data/job-domains";
+import { WEGROW_JOB_DOMAINS, ALL_JOB_ROLES } from "@/data/job-domains";
+import { ALL_INDIA_COLLEGES_LIST } from "@/data/academic-data";
 
 interface AddLeadModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose }) =
   const [currentCompany, setCurrentCompany] = useState("");
   const [city, setCity] = useState("Chennai");
   const [qualification, setQualification] = useState("B.E / B.Tech");
+  const [collegeName, setCollegeName] = useState("");
   const [passedOutYear, setPassedOutYear] = useState("2025");
   const [leadSource, setLeadSource] = useState<any>("Job Portal");
   const [assignedCaller, setAssignedCaller] = useState<string>(WEGROW_STAFF_MEMBERS[0] || "MuthuSelvi");
@@ -61,6 +63,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose }) =
       nextFollowUpTime: "11:00 AM",
       city,
       qualification,
+      collegeName: collegeName.trim() || undefined,
       passedOutYear,
       notes: skillsNotes.trim()
         ? [
@@ -160,17 +163,19 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose }) =
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Target Domain / Job Role <span className="text-rose-500">*</span>
               </label>
-              <select
+              <input
+                type="text"
+                list="all-job-roles"
+                placeholder="Type letter to search jobs (e.g. Python, Full Stack)..."
                 value={preferredDomain}
                 onChange={(e) => setPreferredDomain(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium"
-              >
-                {WEGROW_JOB_DOMAINS.map((jd) => (
-                  <option key={jd.id} value={jd.name}>
-                    {jd.name}
-                  </option>
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium"
+              />
+              <datalist id="all-job-roles">
+                {ALL_JOB_ROLES.map((role, idx) => (
+                  <option key={idx} value={role} />
                 ))}
-              </select>
+              </datalist>
             </div>
 
             <div>
@@ -368,6 +373,26 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose }) =
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium"
               />
             </div>
+          </div>
+
+          {/* College / University Name Autocomplete */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              College / University Name (All-India Search)
+            </label>
+            <input
+              type="text"
+              list="all-india-colleges"
+              placeholder="Type letter to search Colleges (e.g. Mepco, ANJAC, Anna University, IIT)..."
+              value={collegeName}
+              onChange={(e) => setCollegeName(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium"
+            />
+            <datalist id="all-india-colleges">
+              {ALL_INDIA_COLLEGES_LIST.map((col, idx) => (
+                <option key={idx} value={col} />
+              ))}
+            </datalist>
           </div>
 
           {/* Row 8: Key Skills / Initial Note */}

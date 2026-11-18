@@ -196,15 +196,27 @@ export default function App() {
       if (nextAppState === "active") {
         const session = TelephonyService.getActiveDialSession();
         if (session) {
-          const elapsed = Math.max(1, Math.round((Date.now() - session.startTime) / 1000));
           TelephonyService.clearActiveDialSession();
+
+          // 1. Try to get EXACT talk duration directly from Android cellular CallLog!
+          let exactDuration: number | null = null;
+          try {
+            const lastLog = await TelephonyService.getLastCallLog(session.phone);
+            if (lastLog && typeof lastLog.durationSeconds === "number") {
+              exactDuration = lastLog.durationSeconds;
+            }
+          } catch {}
+
+          const elapsed = Math.max(1, Math.round((Date.now() - session.startTime) / 1000));
+          const finalDuration = exactDuration !== null ? exactDuration : elapsed;
+
           // Trigger if telecaller spent at least 2 seconds in the dialer
           if (elapsed >= 2) {
             const cachedLead = await StorageService.lookupLeadUnified(session.phone);
             handleCallEnded({
               phoneNumber: session.phone,
               studentName: session.name,
-              durationSeconds: elapsed,
+              durationSeconds: finalDuration,
               lead: cachedLead,
             });
           }

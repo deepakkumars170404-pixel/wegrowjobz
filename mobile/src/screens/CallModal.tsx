@@ -16,27 +16,21 @@ import { THEME } from "../constants/theme";
 import { CallDisposition, CallRecord, Lead, WEGROW_STAFF_MEMBERS, StaffMember, AppMode } from "../types";
 import { ApiService } from "../services/api";
 import { StorageService } from "../services/storage";
-import { DEGREES_LIST, TN_COLLEGES_LIST } from "../data/academicData";
-import { WEGROW_INSTITUTE_COURSES, WegrowCourseItem } from "../data/instituteCourses";
-import { JOB_DOMAINS, EXPERIENCE_LEVELS, SALARY_RANGES } from "../data/jobData";
-import { LiveClock } from "../components/LiveClock";
+import { ALL_INDIA_COLLEGES_LIST } from "../data/academicData";
+import { WEGROW_INSTITUTE_COURSES } from "../data/instituteCourses";
+import { ALL_JOB_ROLES, EXPERIENCE_LEVELS, SALARY_RANGES, NOTICE_PERIODS } from "../data/jobData";
 import { TelephonyService } from "../services/telephony";
 import {
   User,
-  UserCheck,
   Sparkles,
   GraduationCap,
   Building2,
   XCircle,
   Clock,
-  PhoneMissed,
-  Check,
-  Calendar,
-  Phone,
   Briefcase,
   DollarSign,
   MessageSquare,
-  FileSpreadsheet,
+  Check,
 } from "lucide-react-native";
 
 interface CallModalProps {
@@ -85,10 +79,12 @@ export const CallModal: React.FC<CallModalProps> = ({
 
   const [callerName, setCallerName] = useState<StaffMember>("MuthuSelvi");
   const [disposition, setDisposition] = useState<CallDisposition>("Interested");
+  const [durationSec, setDurationSec] = useState<number>(durationSeconds);
   const [courseInterested, setCourseInterested] = useState("");
   const [preferredDomain, setPreferredDomain] = useState("");
   const [experienceYears, setExperienceYears] = useState("Fresher (0 - 6 Months)");
   const [expectedSalary, setExpectedSalary] = useState("₹18,000 - ₹25,000 / month");
+  const [noticePeriod, setNoticePeriod] = useState("Immediate (0 days)");
   const [qualification, setQualification] = useState("");
   const [passedOutYear, setPassedOutYear] = useState("2024");
   const [collegeName, setCollegeName] = useState("");
@@ -97,10 +93,15 @@ export const CallModal: React.FC<CallModalProps> = ({
   const [nextFollowUpTime, setNextFollowUpTime] = useState("10:30 AM");
   const [submitting, setSubmitting] = useState(false);
 
-  // Search states for dropdown pickers
+  // Search queries & suggestion visibility
+  const [domainQuery, setDomainQuery] = useState("");
+  const [showDomainSuggestions, setShowDomainSuggestions] = useState(false);
+
   const [courseQuery, setCourseQuery] = useState("");
-  const [degreeQuery, setDegreeQuery] = useState("");
+  const [showCourseSuggestions, setShowCourseSuggestions] = useState(false);
+
   const [collegeQuery, setCollegeQuery] = useState("");
+  const [showCollegeSuggestions, setShowCollegeSuggestions] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -113,10 +114,12 @@ export const CallModal: React.FC<CallModalProps> = ({
 
   useEffect(() => {
     if (lead) {
+      setDurationSec(durationSeconds);
       setCourseInterested(lead.courseInterested || "");
       setPreferredDomain(lead.preferredDomain || (isJobz ? "IT & Software Development" : ""));
       setExperienceYears(lead.experienceYears || "Fresher (0 - 6 Months)");
       setExpectedSalary(lead.expectedSalary || "₹18,000 - ₹25,000 / month");
+      setNoticePeriod((lead as any).noticePeriod || "Immediate (0 days)");
       setQualification(lead.qualification || "");
       setPassedOutYear(lead.passedOutYear || "2024");
       setCollegeName(lead.collegeName || "");
@@ -125,38 +128,69 @@ export const CallModal: React.FC<CallModalProps> = ({
       setNotes("");
 
       if (durationSeconds > 0) {
-        setDisposition(isJobz ? "Interested" : "Interested");
+        setDisposition("Interested");
       } else {
         setDisposition("Not Answered");
       }
+
+      setDomainQuery("");
+      setShowDomainSuggestions(false);
+      setCourseQuery("");
+      setShowCourseSuggestions(false);
+      setCollegeQuery("");
+      setShowCollegeSuggestions(false);
     }
   }, [lead, visible, durationSeconds, isJobz]);
 
   const activeDispositions = isJobz ? JOBZ_DISPOSITIONS : ADMISSION_DISPOSITIONS;
-
-  // Repeat caller check:
   const isFirstTimeCaller = !lead?.callCount || lead.callCount === 0;
+
+  // Filtered Job Roles
+  const filteredDomains = useMemo(() => {
+    if (!domainQuery.trim()) return ALL_JOB_ROLES.slice(0, 8);
+    const q = domainQuery.toLowerCase();
+    return ALL_JOB_ROLES.filter((r) => r.toLowerCase().includes(q)).slice(0, 10);
+  }, [domainQuery]);
+
+  // Filtered Courses (Admission)
+  const filteredCourses = useMemo(() => {
+    if (!courseQuery.trim()) return WEGROW_INSTITUTE_COURSES.slice(0, 8);
+    const q = courseQuery.toLowerCase();
+    return WEGROW_INSTITUTE_COURSES.filter((c) =>
+      c.displayName.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+    ).slice(0, 10);
+  }, [courseQuery]);
+
+  // Filtered All-India Colleges
+  const filteredColleges = useMemo(() => {
+    if (!collegeQuery.trim()) return [];
+    const q = collegeQuery.toLowerCase();
+    return ALL_INDIA_COLLEGES_LIST.filter((c) => c.toLowerCase().includes(q)).slice(0, 8);
+  }, [collegeQuery]);
+
+  // Timing Calculations
+  const mins = Math.floor(durationSec / 60);
+  const secs = durationSec % 60;
+  const formattedDuration = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+
+  const now = new Date();
+  const startTimeStr = new Date(now.getTime() - durationSec * 1000).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+  const endTimeStr = now.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
 
   const handleSave = async () => {
     if (!lead) return;
 
     setSubmitting(true);
-    const now = new Date();
-    const startTimeStr = new Date(now.getTime() - durationSeconds * 1000).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    const endTimeStr = now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-
-    const mins = Math.floor(durationSeconds / 60);
-    const secs = durationSeconds % 60;
-    const formattedDuration = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-
     const record: CallRecord = {
       id: `call-${Date.now()}`,
       leadId: lead.id,
@@ -164,9 +198,9 @@ export const CallModal: React.FC<CallModalProps> = ({
       phone: lead.phone,
       callerName,
       disposition,
-      outcome: durationSeconds > 0 ? "Attended Call" : "Not Attended Call",
+      outcome: durationSec > 0 ? "Attended Call" : "Not Attended Call",
       mindset: disposition,
-      durationSeconds,
+      durationSeconds: durationSec,
       formattedDuration,
       courseInterested: isJobz ? preferredDomain : courseInterested,
       preferredDomain: isJobz ? preferredDomain : undefined,
@@ -190,12 +224,16 @@ export const CallModal: React.FC<CallModalProps> = ({
     };
 
     try {
-      await ApiService.logCallOutcome(record);
-      Alert.alert("Success", "Call outcome & candidate profile saved!");
+      const res = await ApiService.logCallOutcome(record);
+      if (res && res.success) {
+        Alert.alert("Success", "Call outcome & candidate profile saved and synced to Web CRM!");
+      } else {
+        Alert.alert("Saved", "Saved in phone. Auto-syncing to Web CRM.");
+      }
       onSaveSuccess();
       onClose();
     } catch (err: any) {
-      Alert.alert("Notice", "Saved locally in phone. Will auto-sync.");
+      Alert.alert("Saved", "Saved in phone. Auto-syncing to Web CRM.");
       onSaveSuccess();
       onClose();
     } finally {
@@ -217,7 +255,6 @@ export const CallModal: React.FC<CallModalProps> = ({
             <View style={{ flex: 1 }}>
               <View style={styles.titleRow}>
                 <Text style={styles.headerTitle}>{lead.studentName}</Text>
-                {/* Feature 3: Repeat Caller / First Time Badge */}
                 <View
                   style={[
                     styles.badge,
@@ -230,19 +267,56 @@ export const CallModal: React.FC<CallModalProps> = ({
                 </View>
               </View>
               <Text style={styles.headerSubtitle}>
-                📞 {lead.phone} • {durationSeconds}s duration • {isJobz ? "Jobz Mode" : "Admission Mode"}
+                📞 {lead.phone} • {isJobz ? "Jobz CRM Mode" : "Admission CRM Mode"}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <XCircle size={24} color="#94A3B8" />
+              <XCircle size={26} color="#94A3B8" />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Accurate Talk Duration Card */}
+            <View style={styles.durationCard}>
+              <View style={styles.durationTopRow}>
+                <View style={styles.durationLeft}>
+                  <Clock size={16} color="#2563EB" />
+                  <Text style={styles.durationTitle}>Talk Duration:</Text>
+                </View>
+                <View style={styles.durationControls}>
+                  <TouchableOpacity
+                    onPress={() => setDurationSec(Math.max(0, durationSec - 5))}
+                    style={styles.durBtn}
+                  >
+                    <Text style={styles.durBtnText}>-5s</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.durationValueText}>
+                    {mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setDurationSec(durationSec + 5)}
+                    style={styles.durBtn}
+                  >
+                    <Text style={styles.durBtnText}>+5s</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.timeRangeRow}>
+                <Text style={styles.timeRangeText}>🟢 Start: {startTimeStr}</Text>
+                <Text style={styles.timeRangeText}>🔴 End: {endTimeStr}</Text>
+              </View>
+            </View>
+
             {/* Quick 1-Click WhatsApp Follow-up button */}
             <TouchableOpacity
               style={styles.waBtn}
-              onPress={() => TelephonyService.openWhatsAppChat(lead.phone, lead.studentName, isJobz ? preferredDomain : courseInterested)}
+              onPress={() =>
+                TelephonyService.openWhatsAppChat(
+                  lead.phone,
+                  lead.studentName,
+                  isJobz ? preferredDomain : courseInterested
+                )
+              }
             >
               <MessageSquare size={16} color="#FFFFFF" />
               <Text style={styles.waBtnText}>Send WhatsApp Follow-up Message</Text>
@@ -265,27 +339,45 @@ export const CallModal: React.FC<CallModalProps> = ({
               })}
             </View>
 
-            {/* Feature 4 & 5: Candidate Screening / Job Profile Fields (Jobz Mode) */}
+            {/* Job Fields (Jobz Mode) */}
             {isJobz ? (
               <View style={styles.jobzSection}>
                 <View style={styles.sectionHeaderBox}>
                   <Briefcase size={16} color={THEME.colors.primary} />
-                  <Text style={styles.sectionLabel}>Job Field / Domain Needed</Text>
+                  <Text style={styles.sectionLabel}>Job Role / Domain Needed</Text>
                 </View>
-                <View style={styles.chipsContainer}>
-                  {JOB_DOMAINS.slice(0, 6).map((domain) => {
-                    const active = preferredDomain === domain;
-                    return (
+
+                {/* Autocomplete Search Input */}
+                <TextInput
+                  style={styles.input}
+                  placeholder="Type letter to search jobs (e.g. Python, Full Stack, HR)..."
+                  value={preferredDomain}
+                  onChangeText={(text) => {
+                    setPreferredDomain(text);
+                    setDomainQuery(text);
+                    setShowDomainSuggestions(true);
+                  }}
+                  onFocus={() => setShowDomainSuggestions(true)}
+                />
+
+                {showDomainSuggestions && filteredDomains.length > 0 && (
+                  <View style={styles.suggestionsBox}>
+                    <Text style={styles.suggestionsHeader}>Select Matched Role ({filteredDomains.length}):</Text>
+                    {filteredDomains.map((domain) => (
                       <TouchableOpacity
                         key={domain}
-                        onPress={() => setPreferredDomain(domain)}
-                        style={[styles.chipSm, active && styles.chipActive]}
+                        style={styles.suggestionItem}
+                        onPress={() => {
+                          setPreferredDomain(domain);
+                          setShowDomainSuggestions(false);
+                        }}
                       >
-                        <Text style={[styles.chipTextSm, active && styles.chipTextActive]}>{domain}</Text>
+                        <Briefcase size={13} color="#2563EB" />
+                        <Text style={styles.suggestionText}>{domain}</Text>
                       </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                    ))}
+                  </View>
+                )}
 
                 <View style={styles.sectionHeaderBox}>
                   <Clock size={16} color={THEME.colors.primary} />
@@ -305,32 +397,82 @@ export const CallModal: React.FC<CallModalProps> = ({
                     );
                   })}
                 </View>
+
+                <View style={styles.sectionHeaderBox}>
+                  <DollarSign size={16} color={THEME.colors.primary} />
+                  <Text style={styles.sectionLabel}>Expected CTC / Salary</Text>
+                </View>
+                <View style={styles.chipsContainer}>
+                  {SALARY_RANGES.map((sal) => {
+                    const active = expectedSalary === sal;
+                    return (
+                      <TouchableOpacity
+                        key={sal}
+                        onPress={() => setExpectedSalary(sal)}
+                        style={[styles.chipSm, active && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipTextSm, active && styles.chipTextActive]}>{sal}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
             ) : (
-              /* Admission Course Field */
-              <View>
-                <Text style={styles.sectionLabel}>Course Interested</Text>
+              /* Course Interested (Admission Mode) */
+              <View style={styles.jobzSection}>
+                <View style={styles.sectionHeaderBox}>
+                  <Sparkles size={16} color="#16A34A" />
+                  <Text style={styles.sectionLabel}>Course Interested (Wegrow Curriculum)</Text>
+                </View>
+
+                {/* Autocomplete Course Input */}
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g. Full Stack Web Development"
+                  placeholder="Type letter to search courses (e.g. Python, Full Stack)..."
                   value={courseInterested}
-                  onChangeText={setCourseInterested}
+                  onChangeText={(text) => {
+                    setCourseInterested(text);
+                    setCourseQuery(text);
+                    setShowCourseSuggestions(true);
+                  }}
+                  onFocus={() => setShowCourseSuggestions(true)}
                 />
+
+                {showCourseSuggestions && filteredCourses.length > 0 && (
+                  <View style={styles.suggestionsBox}>
+                    <Text style={styles.suggestionsHeader}>Institute Courses ({filteredCourses.length}):</Text>
+                    {filteredCourses.map((c) => (
+                      <TouchableOpacity
+                        key={c.code}
+                        style={styles.suggestionItem}
+                        onPress={() => {
+                          setCourseInterested(c.displayName);
+                          setShowCourseSuggestions(false);
+                        }}
+                      >
+                        <Sparkles size={13} color="#16A34A" />
+                        <Text style={styles.suggestionText}>{c.displayName}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
             )}
 
-            {/* Education & College Fields */}
+            {/* Education & All-India College Search */}
             <View style={styles.eduSection}>
               <View style={styles.sectionHeaderBox}>
                 <GraduationCap size={16} color={THEME.colors.primary} />
                 <Text style={styles.sectionLabel}>College & Qualification</Text>
               </View>
+
               <TextInput
                 style={styles.input}
-                placeholder="Degree (e.g. B.E CSE, B.Com, MCA)"
+                placeholder="Degree (e.g. B.E CSE, B.Com, BCA, MCA)"
                 value={qualification}
                 onChangeText={setQualification}
               />
+
               <View style={styles.row}>
                 <TextInput
                   style={[styles.input, { flex: 1, marginRight: 8 }]}
@@ -339,13 +481,39 @@ export const CallModal: React.FC<CallModalProps> = ({
                   onChangeText={setPassedOutYear}
                   keyboardType="numeric"
                 />
-                <TextInput
-                  style={[styles.input, { flex: 2 }]}
-                  placeholder="College Name"
-                  value={collegeName}
-                  onChangeText={setCollegeName}
-                />
               </View>
+
+              {/* All India College Autocomplete */}
+              <TextInput
+                style={styles.input}
+                placeholder="Type to search College Name across India..."
+                value={collegeName}
+                onChangeText={(text) => {
+                  setCollegeName(text);
+                  setCollegeQuery(text);
+                  setShowCollegeSuggestions(true);
+                }}
+                onFocus={() => setShowCollegeSuggestions(true)}
+              />
+
+              {showCollegeSuggestions && filteredColleges.length > 0 && (
+                <View style={styles.suggestionsBox}>
+                  <Text style={styles.suggestionsHeader}>Colleges & Universities ({filteredColleges.length}):</Text>
+                  {filteredColleges.map((col) => (
+                    <TouchableOpacity
+                      key={col}
+                      style={styles.suggestionItem}
+                      onPress={() => {
+                        setCollegeName(col);
+                        setShowCollegeSuggestions(false);
+                      }}
+                    >
+                      <Building2 size={13} color="#4F46E5" />
+                      <Text style={styles.suggestionText}>{col}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
 
             {/* Next Callback Date / Follow-up */}
@@ -373,7 +541,7 @@ export const CallModal: React.FC<CallModalProps> = ({
             <Text style={styles.sectionLabel}>Discussion Remarks / Feedback</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Candidate feedback, communication skill, expectations..."
+              placeholder="Candidate feedback, communication skill, interview schedule, expectations..."
               multiline
               numberOfLines={3}
               value={notes}
@@ -411,7 +579,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "90%",
+    maxHeight: "92%",
     paddingBottom: Platform.OS === "ios" ? 30 : 16,
   },
   modalHeader: {
@@ -464,12 +632,71 @@ const styles = StyleSheet.create({
   modalBody: {
     padding: 16,
   },
+  durationCard: {
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1.5,
+    borderColor: "#BBF7D0",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+  durationTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  durationLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  durationTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#15803D",
+  },
+  durationControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  durBtn: {
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#86EFAC",
+  },
+  durBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#166534",
+  },
+  durationValueText: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#14532D",
+  },
+  timeRangeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#DCFCE7",
+  },
+  timeRangeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#166534",
+  },
   waBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#25D366",
-    borderRadius: 8,
+    borderRadius: 10,
     paddingVertical: 10,
     gap: 8,
     marginBottom: 14,
@@ -534,24 +761,24 @@ const styles = StyleSheet.create({
   },
   jobzSection: {
     backgroundColor: "#F8FAFC",
-    padding: 10,
-    borderRadius: 10,
+    padding: 12,
+    borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
   eduSection: {
     backgroundColor: "#FAFAFA",
-    padding: 10,
-    borderRadius: 10,
+    padding: 12,
+    borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
   fuBox: {
     backgroundColor: "#EFF6FF",
-    padding: 10,
-    borderRadius: 10,
+    padding: 12,
+    borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "#DBEAFE",
@@ -561,11 +788,43 @@ const styles = StyleSheet.create({
     borderColor: "#CBD5E1",
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 9,
     fontSize: 13,
     backgroundColor: "#FFFFFF",
     marginBottom: 8,
     color: "#0F172A",
+  },
+  suggestionsBox: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 10,
+    marginBottom: 12,
+    padding: 6,
+    maxHeight: 180,
+  },
+  suggestionsHeader: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase",
+    marginBottom: 4,
+    paddingHorizontal: 6,
+  },
+  suggestionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#F1F5F9",
+  },
+  suggestionText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1E293B",
   },
   textArea: {
     minHeight: 65,
@@ -581,7 +840,7 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     backgroundColor: THEME.colors.primary,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderRadius: 10,
     alignItems: "center",
   },

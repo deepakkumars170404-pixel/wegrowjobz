@@ -5,21 +5,70 @@ export interface JobDomain {
   typicalSalaryRange: string;
 }
 
-export const WEGROW_JOB_DOMAINS: JobDomain[] = [
-  { id: "jd-1", name: "Full Stack Developer (React / Node / Python)", category: "IT & Software", typicalSalaryRange: "₹25,000 - ₹45,000" },
-  { id: "jd-2", name: "Front End Developer (HTML/CSS/JS/React)", category: "IT & Software", typicalSalaryRange: "₹20,000 - ₹35,000" },
-  { id: "jd-3", name: "Back End / Python Developer", category: "IT & Software", typicalSalaryRange: "₹22,000 - ₹40,000" },
-  { id: "jd-4", name: "Mobile App Developer (Flutter / React Native)", category: "IT & Software", typicalSalaryRange: "₹25,000 - ₹45,000" },
-  { id: "jd-5", name: "Data Analyst & Power BI Executive", category: "IT & Software", typicalSalaryRange: "₹22,000 - ₹38,000" },
-  { id: "jd-6", name: "Telecaller / Tele-Marketing Executive", category: "Telecalling & BPO", typicalSalaryRange: "₹15,000 - ₹25,000" },
-  { id: "jd-7", name: "Customer Support Executive (Voice / Non-Voice)", category: "Telecalling & BPO", typicalSalaryRange: "₹16,000 - ₹26,000" },
-  { id: "jd-8", name: "BPO Team Leader / Quality Analyst", category: "Telecalling & BPO", typicalSalaryRange: "₹22,000 - ₹35,000" },
-  { id: "jd-9", name: "Digital Marketing & SEO Specialist", category: "Marketing & Sales", typicalSalaryRange: "₹18,000 - ₹32,000" },
-  { id: "jd-10", name: "Social Media & Performance Ads Executive", category: "Marketing & Sales", typicalSalaryRange: "₹18,000 - ₹30,000" },
-  { id: "jd-11", name: "Field Sales & Business Development", category: "Marketing & Sales", typicalSalaryRange: "₹18,000 - ₹30,000 + Inc" },
-  { id: "jd-12", name: "Accountant & Tally / GST Executive", category: "Finance & Accounts", typicalSalaryRange: "₹18,000 - ₹30,000" },
-  { id: "jd-13", name: "Accounts Assistant / Billing Clerk", category: "Finance & Accounts", typicalSalaryRange: "₹14,000 - ₹20,000" },
-  { id: "jd-14", name: "HR Recruiter / Talent Acquisition", category: "Admin & HR", typicalSalaryRange: "₹18,000 - ₹30,000" },
-  { id: "jd-15", name: "Office Admin & Back Office Coordinator", category: "Admin & HR", typicalSalaryRange: "₹15,000 - ₹22,000" },
-  { id: "jd-16", name: "Graphic Designer & Video Editor", category: "Marketing & Sales", typicalSalaryRange: "₹18,000 - ₹32,000" },
+export const ALL_JOB_ROLES: string[] = [
+  // IT & Software
+  "Full Stack Web Developer (React / Node / Python)",
+  "Front End Developer (HTML, CSS, React.js)",
+  "Back End Developer (Python / Django / Node.js)",
+  "Python Developer",
+  "React / React Native Developer",
+  "Java / Spring Boot Developer",
+  "Flutter Mobile App Developer",
+  "Software Tester / Manual & Automation QA",
+  "Data Analyst & Power BI Executive",
+  "Data Scientist & AI / ML Engineer",
+  "SQL / Database Administrator (DBA)",
+  "Cloud & DevOps Engineer (AWS / Azure)",
+  "Cyber Security Analyst",
+  "Network & Hardware Desktop Engineer",
+  "UI / UX Designer (Figma / Web)",
+
+  // Telecalling & BPO
+  "Telecaller / Tele-Marketing Executive",
+  "Inside Sales Executive (Voice)",
+  "Customer Support Executive (Voice / Non-Voice)",
+  "BPO Team Leader / Operations Supervisor",
+  "Quality Analyst (QA - BPO Voice)",
+  "Medical Billing / AR Caller",
+  "Client Relationship Executive (CRE)",
+
+  // Marketing & Sales
+  "Digital Marketing Specialist (SEO / SEM)",
+  "Social Media & Meta Ads Manager",
+  "Performance Marketing & Google Ads Executive",
+  "Field Sales & Business Development Executive (BDE)",
+  "Corporate Sales Manager",
+  "Graphic Designer & Social Media Post Creator",
+  "Video Editor & Content Creator (Premiere / CapCut)",
+  "Copywriter & Content Writer",
+
+  // Finance & Accounts
+  "Accountant (Tally Prime & GST / TDS)",
+  "Senior Accountant & Audit Assistant",
+  "Accounts Assistant / Billing Executive",
+  "Financial Analyst / MIS Executive",
+  "Banking & Loan Operations Executive",
+
+  // HR, Admin & Operations
+  "HR Recruiter / Talent Acquisition Specialist",
+  "HR Generalist & Payroll Executive",
+  "Office Admin & Front Office Coordinator",
+  "Executive Assistant to Director",
+  "Logistics & Supply Chain Coordinator",
+  "Store In-charge & Inventory Executive",
 ];
+
+export const WEGROW_JOB_DOMAINS: JobDomain[] = ALL_JOB_ROLES.map((name, idx) => ({
+  id: `jd-${idx + 1}`,
+  name,
+  category: name.includes("Developer") || name.includes("Data") || name.includes("Tester") || name.includes("Engineer")
+    ? "IT & Software"
+    : name.includes("Telecaller") || name.includes("BPO") || name.includes("Customer")
+    ? "Telecalling & BPO"
+    : name.includes("Marketing") || name.includes("Sales") || name.includes("Designer") || name.includes("Video")
+    ? "Marketing & Sales"
+    : name.includes("Account") || name.includes("Financial") || name.includes("Billing")
+    ? "Finance & Accounts"
+    : "Admin & HR",
+  typicalSalaryRange: "₹18,000 - ₹35,000",
+}));

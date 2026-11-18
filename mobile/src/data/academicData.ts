@@ -319,7 +319,43 @@ export const TN_COLLEGES_LIST: string[] = [
   "Syed Ammal Engineering College, Ramanathapuram",
   "Government Arts College, Paramakudi, Ramanathapuram",
 
+  // --- All-India Premier Institutes, Universities & Colleges ---
+  "Indian Institute of Technology Madras (IIT Madras), Chennai",
+  "Indian Institute of Technology Bombay (IIT Bombay), Mumbai",
+  "Indian Institute of Technology Delhi (IIT Delhi), New Delhi",
+  "Indian Institute of Technology Kharagpur (IIT KGP), West Bengal",
+  "Indian Institute of Technology Kanpur (IIT Kanpur), UP",
+  "National Institute of Technology Tiruchirappalli (NIT Trichy)",
+  "National Institute of Technology Karnataka (NIT Surathkal)",
+  "National Institute of Technology Calicut (NIT Calicut), Kerala",
+  "National Institute of Technology Warangal (NIT Warangal)",
+  "BITS Pilani (Birla Institute of Technology and Science)",
+  "International Institute of Information Technology (IIIT Hyderabad)",
+  "International Institute of Information Technology (IIIT Bangalore)",
+  "SRM Institute of Science and Technology (SRM University), Kattankulathur",
+  "Vellore Institute of Technology (VIT University), Vellore & Chennai",
+  "Amrita Vishwa Vidyapeetham (Amrita University), Coimbatore",
+  "Sastra Deemed University, Thanjavur",
+  "RV College of Engineering (RVCE), Bangalore",
+  "BMS College of Engineering, Bangalore",
+  "PES University, Bangalore",
+  "Christ University, Bangalore",
+  "Jain University, Bangalore",
+  "Cochin University of Science and Technology (CUSAT), Kochi, Kerala",
+  "College of Engineering Trivandrum (CET), Kerala",
+  "Rajagiri College of Social Sciences & Management, Kochi",
+  "Jawaharlal Nehru Technological University (JNTU), Hyderabad",
+  "Osmania University, Hyderabad",
+  "Andhra University, Visakhapatnam",
+  "Delhi University (DU / SRCC / Hindu / Hansraj), New Delhi",
+  "Jawaharlal Nehru University (JNU), New Delhi",
+  "Banaras Hindu University (BHU), Varanasi",
+  "University of Mumbai, Mumbai",
+  "Savitribai Phule Pune University, Pune",
+
   // --- Custom Option ---
   "Other Tamil Nadu College (Type Custom Name)",
   "Other State / University College",
 ];
+
+export const ALL_INDIA_COLLEGES_LIST: string[] = TN_COLLEGES_LIST;

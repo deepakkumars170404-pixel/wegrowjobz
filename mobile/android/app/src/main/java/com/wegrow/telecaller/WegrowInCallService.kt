@@ -68,7 +68,8 @@ class WegrowInCallService : InCallService() {
         }
 
         fun disconnectCurrentCall(): Boolean {
-            currentCall?.let {
+            val callToDisconnect = currentCall ?: instance?.calls?.firstOrNull { it.state != Call.STATE_DISCONNECTED }
+            callToDisconnect?.let {
                 try {
                     if (it.state == Call.STATE_RINGING) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

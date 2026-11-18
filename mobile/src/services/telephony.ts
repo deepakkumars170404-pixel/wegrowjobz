@@ -66,6 +66,22 @@ export const TelephonyService = {
     return null;
   },
 
+  async getLastCallLog(phoneNumber?: string): Promise<{
+    number: string;
+    durationSeconds: number;
+    timestamp: number;
+    callType: number;
+  } | null> {
+    if (Platform.OS === "android" && WegrowTelephony?.getLastCallLog) {
+      try {
+        return await WegrowTelephony.getLastCallLog(phoneNumber || null);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  },
+
   async dialViaSIM(
     phoneNumber: string,
     studentName?: string,

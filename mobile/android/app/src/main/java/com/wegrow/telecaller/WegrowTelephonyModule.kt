@@ -354,4 +354,60 @@ class WegrowTelephonyModule(private val reactContext: ReactApplicationContext) :
             }
         }
     }
+
+    @ReactMethod
+    fun getLastCallLog(phoneNumber: String?, promise: Promise) {
+        try {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    reactContext,
+                    android.Manifest.permission.READ_CALL_LOG
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                promise.resolve(null)
+                return
+            }
+
+            val uri = android.provider.CallLog.Calls.CONTENT_URI
+            val projection = arrayOf(
+                android.provider.CallLog.Calls.NUMBER,
+                android.provider.CallLog.Calls.DURATION,
+                android.provider.CallLog.Calls.DATE,
+                android.provider.CallLog.Calls.TYPE
+            )
+
+            val cursor = reactContext.contentResolver.query(
+                uri,
+                projection,
+                null,
+                null,
+                "${android.provider.CallLog.Calls.DATE} DESC"
+            )
+
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val numIdx = it.getColumnIndex(android.provider.CallLog.Calls.NUMBER)
+                    val durIdx = it.getColumnIndex(android.provider.CallLog.Calls.DURATION)
+                    val dateIdx = it.getColumnIndex(android.provider.CallLog.Calls.DATE)
+                    val typeIdx = it.getColumnIndex(android.provider.CallLog.Calls.TYPE)
+
+                    val number = if (numIdx != -1) it.getString(numIdx) ?: "" else ""
+                    val durationSecs = if (durIdx != -1) it.getInt(durIdx) else 0
+                    val timestamp = if (dateIdx != -1) it.getLong(dateIdx) else 0L
+                    val callType = if (typeIdx != -1) it.getInt(typeIdx) else 0
+
+                    val map = Arguments.createMap().apply {
+                        putString("number", number)
+                        putInt("durationSeconds", durationSecs)
+                        putDouble("timestamp", timestamp.toDouble())
+                        putInt("callType", callType)
+                    }
+                    promise.resolve(map)
+                    return
+                }
+            }
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.resolve(null)
+        }
+    }
 }

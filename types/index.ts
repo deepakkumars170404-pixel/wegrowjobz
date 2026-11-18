@@ -107,6 +107,8 @@ export interface CallRecord {
   collegeName?: string;
   courseInterested?: string;
   preferredDomain?: string;
+  experienceYears?: string;
+  expectedSalary?: string;
   studentName?: string;
   remarks: string;
   fromTime?: string;
