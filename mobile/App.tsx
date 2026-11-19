@@ -121,10 +121,21 @@ export default function App() {
     return () => clearInterval(timer);
   }, [isPunchedIn]);
 
-  // Handle Mode Switch (Auto switches server URL between Admission & Jobz)
+  // Handle Mode Switch (Auto switches server URL & Dialers between Admission & Jobz)
   const handleToggleMode = async (mode: AppMode) => {
     setAppMode(mode);
     await StorageService.setAppMode(mode);
+    if (mode === "admission") {
+      Alert.alert(
+        "Mode: Admission CRM 🎓",
+        "Calls will now connect automatically through WeGrow In-App Dialer with live call controls."
+      );
+    } else {
+      Alert.alert(
+        "Mode: Jobz CRM 💼",
+        "Calls will now connect automatically through Google Dialer with post-call form return."
+      );
+    }
   };
 
   // Handle Staff Selection & Punch In

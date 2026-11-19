@@ -20,6 +20,7 @@ import { ALL_INDIA_COLLEGES_LIST } from "../data/academicData";
 import { WEGROW_INSTITUTE_COURSES } from "../data/instituteCourses";
 import { ALL_JOB_ROLES, EXPERIENCE_LEVELS, SALARY_RANGES, NOTICE_PERIODS } from "../data/jobData";
 import { TelephonyService } from "../services/telephony";
+import { LiveClock } from "../components/LiveClock";
 import {
   User,
   Sparkles,
@@ -293,31 +294,96 @@ export const CallModal: React.FC<CallModalProps> = ({
           </View>
 
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {/* Accurate Talk Duration Card */}
+            {/* Accurate Talk Duration Card with Live Clock & Quick Presets */}
             <View style={styles.durationCard}>
+              {/* Live Clock Header */}
+              <View style={styles.liveClockHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <View style={styles.liveGreenDot} />
+                  <Text style={styles.liveClockLabel}>Real-time Live Clock:</Text>
+                </View>
+                <LiveClock style={styles.liveClockValue} />
+              </View>
+
+              {/* Talk Duration Header & Step Controls */}
               <View style={styles.durationTopRow}>
                 <View style={styles.durationLeft}>
                   <Clock size={16} color="#2563EB" />
-                  <Text style={styles.durationTitle}>Talk Duration:</Text>
+                  <Text style={styles.durationTitle}>Talk Time:</Text>
                 </View>
                 <View style={styles.durationControls}>
+                  <TouchableOpacity
+                    onPress={() => handleAdjustDuration(durationSec - 10)}
+                    style={styles.durBtnSm}
+                  >
+                    <Text style={styles.durBtnText}>-10s</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => handleAdjustDuration(durationSec - 5)}
                     style={styles.durBtn}
                   >
                     <Text style={styles.durBtnText}>-5s</Text>
                   </TouchableOpacity>
-                  <Text style={styles.durationValueText}>
-                    {mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}
-                  </Text>
+                  <TouchableOpacity
+                    onPress={() => handleAdjustDuration(durationSec - 1)}
+                    style={styles.durBtnSm}
+                  >
+                    <Text style={styles.durBtnText}>-1s</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.durationDisplayBox}>
+                    <Text style={styles.durationValueText}>
+                      {mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}
+                    </Text>
+                    <Text style={styles.durationSubText}>({durationSec}s total)</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={() => handleAdjustDuration(durationSec + 1)}
+                    style={styles.durBtnSm}
+                  >
+                    <Text style={styles.durBtnText}>+1s</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => handleAdjustDuration(durationSec + 5)}
                     style={styles.durBtn}
                   >
                     <Text style={styles.durBtnText}>+5s</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleAdjustDuration(durationSec + 10)}
+                    style={styles.durBtnSm}
+                  >
+                    <Text style={styles.durBtnText}>+10s</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
+
+              {/* Quick Preset Seconds Chips */}
+              <View style={styles.presetChipsRow}>
+                {[0, 10, 15, 20, 30, 45, 60, 120].map((presetSec) => {
+                  const isCurrent = durationSec === presetSec;
+                  const label =
+                    presetSec === 0
+                      ? "0s (Missed)"
+                      : presetSec >= 60
+                      ? `${Math.floor(presetSec / 60)}m`
+                      : `${presetSec}s`;
+                  return (
+                    <TouchableOpacity
+                      key={presetSec}
+                      onPress={() => handleAdjustDuration(presetSec)}
+                      style={[styles.presetChip, isCurrent && styles.presetChipActive]}
+                    >
+                      <Text style={[styles.presetChipText, isCurrent && styles.presetChipTextActive]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Exact Timeline */}
               <View style={styles.timeRangeRow}>
                 <Text style={styles.timeRangeText}>🟢 Start: {startTimeStr}</Text>
                 <Text style={styles.timeRangeText}>🔴 End: {endTimeStr}</Text>
@@ -711,10 +777,38 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 14,
   },
+  liveClockHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  liveGreenDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#16A34A",
+  },
+  liveClockLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#166534",
+  },
+  liveClockValue: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#14532D",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
   durationTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 6,
   },
   durationLeft: {
     flexDirection: "row",
@@ -729,25 +823,68 @@ const styles = StyleSheet.create({
   durationControls: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 4,
   },
   durBtn: {
     backgroundColor: "#DCFCE7",
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "#86EFAC",
   },
+  durBtnSm: {
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+  durationDisplayBox: {
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
   durBtnText: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 10,
+    fontWeight: "800",
     color: "#166534",
   },
   durationValueText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "900",
     color: "#14532D",
+  },
+  durationSubText: {
+    fontSize: 9.5,
+    fontWeight: "600",
+    color: "#15803D",
+  },
+  presetChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginVertical: 6,
+  },
+  presetChip: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#86EFAC",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  presetChipActive: {
+    backgroundColor: "#16A34A",
+    borderColor: "#15803D",
+  },
+  presetChipText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#166534",
+  },
+  presetChipTextActive: {
+    color: "#FFFFFF",
   },
   timeRangeRow: {
     flexDirection: "row",

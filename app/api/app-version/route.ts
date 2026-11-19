@@ -10,18 +10,17 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     appName: "WeGrow Telecaller & Jobz CRM",
     packageName: "com.wegrow.telecaller",
-    versionCode: 2,
-    versionName: "1.0.2",
+    versionCode: 3,
+    versionName: "1.0.3",
     releaseDate: "2026-11-19",
     apkUrl: `http://${hostIp}:8080/WegrowTelecaller_Jobz.apk`,
     fallbackApkUrl: `${protocol}://${host}/api/download-apk`,
     forceUpdate: false,
     releaseNotes: [
-      "⏱️ Accurate Talk Duration: Real cellular call talk time with seconds",
-      "🔍 Job Roles Search: Instant filter across 40+ job profiles",
-      "🎓 All-India Colleges Autocomplete",
-      "⚡ Instant Sync: Web CRM auto-refreshes within 3 seconds of call save",
-      "🔄 In-App Auto Update: Upgrade directly from app without reinstalling"
+      "🕒 Live Clock & Step Adjuster: Real-time clock with +/-1s, +/-5s, +/-10s and presets",
+      "🔄 Dual Dialer Switch: Automatic WeGrow Dialer for Admission and Google Dialer for Jobz",
+      "👤 Caller Identity Chips: One-tap staff selection before saving outcome",
+      "⚡ Instant Supabase Sync: All calls saved live without offline queue"
     ]
   });
 }

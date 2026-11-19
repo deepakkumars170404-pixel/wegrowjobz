@@ -85,7 +85,7 @@ export const TelephonyService = {
   async dialViaSIM(
     phoneNumber: string,
     studentName?: string,
-    appMode: "jobz" | "admission" = "jobz"
+    appModeParam?: "jobz" | "admission"
   ): Promise<{ success: boolean; error?: string }> {
     if (!phoneNumber) {
       Alert.alert("Invalid Number", "Please provide a valid phone number.");
@@ -107,15 +107,30 @@ export const TelephonyService = {
       return { success: false, error: "Number too short" };
     }
 
-    // Track dial session so Post-Call form automatically pops up upon returning from Google Dialer
+    // Auto-detect active mode from storage if not passed directly
+    const activeAppMode = appModeParam || (await StorageService.getAppMode());
+
+    // Track dial session so Post-Call form automatically pops up upon call end
     activeSimDialSession = {
       phone: clean10Digits,
-      name: studentName || (appMode === "jobz" ? "Job Candidate" : "Student"),
+      name: studentName || (activeAppMode === "jobz" ? "Job Candidate" : "Student"),
       startTime: Date.now(),
     };
 
-    // IN JOBZ MODE: Launch Google Dialer directly!
-    if (appMode === "jobz") {
+    // 1. IN ADMISSION CRM MODE: ALWAYS USE WEGROW IN-APP DIALER!
+    if (activeAppMode === "admission") {
+      if (Platform.OS === "android" && WegrowTelephony?.directCall) {
+        try {
+          await WegrowTelephony.directCall(clean10Digits);
+          return { success: true };
+        } catch (e: any) {
+          console.warn("WegrowTelephony directCall error:", e);
+        }
+      }
+    }
+
+    // 2. IN JOBZ CRM MODE: ALWAYS USE GOOGLE DIALER!
+    if (activeAppMode === "jobz") {
       try {
         const telUrl = `tel:${clean10Digits}`;
         await Linking.openURL(telUrl);
@@ -123,16 +138,6 @@ export const TelephonyService = {
       } catch (err: any) {
         Alert.alert("Dialing Error", err.message || "Failed to launch phone dialer");
         return { success: false, error: err.message };
-      }
-    }
-
-    // IN ADMISSION MODE: Direct native WeGrow InCallService SIM call
-    if (Platform.OS === "android" && WegrowTelephony?.directCall) {
-      try {
-        await WegrowTelephony.directCall(clean10Digits);
-        return { success: true };
-      } catch (e: any) {
-        console.warn("WegrowTelephony directCall fallback:", e);
       }
     }
 
