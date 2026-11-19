@@ -15,6 +15,7 @@ import {
   Shield,
   Headphones,
   Settings,
+  GitBranch,
 } from "lucide-react";
 import { WeGrowLogo } from "@/components/shared/WeGrowLogo";
 import { useCRM } from "@/context/CRMContext";
@@ -67,6 +68,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: Users2,
         },
         {
+          title: "Job Deals Pipeline",
+          href: "/pipeline",
+          icon: GitBranch,
+        },
+        {
           title: "Call History & Logs",
           href: "/calls",
           icon: PhoneCall,
@@ -99,6 +105,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           title: "My Candidates Queue",
           href: "/leads",
           icon: Users2,
+        },
+        {
+          title: "Job Deals Pipeline",
+          href: "/pipeline",
+          icon: GitBranch,
         },
         {
           title: "My Call Logs",
