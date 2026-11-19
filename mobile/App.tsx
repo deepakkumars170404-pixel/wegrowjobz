@@ -282,30 +282,17 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" backgroundColor="#FFFFFF" />
 
-      {/* Top Bar: Mode Switcher [ 🎓 Admission ] / [ 💼 Jobz CRM ] */}
+      {/* Top Bar: Dedicated WeGrow Jobz Branding & Active Dialer Info */}
       <View style={styles.topBar}>
-        <View style={styles.modeSwitcher}>
-          <TouchableOpacity
-            style={[styles.modeBtn, appMode === "admission" && styles.modeBtnActiveAdmission]}
-            onPress={() => handleToggleMode("admission")}
-            activeOpacity={0.8}
-          >
-            <GraduationCap size={15} color={appMode === "admission" ? "#FFFFFF" : "#475569"} />
-            <Text style={[styles.modeBtnText, appMode === "admission" && styles.modeBtnTextActive]}>
-              Admission
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.modeBtn, appMode === "jobz" && styles.modeBtnActiveJobz]}
-            onPress={() => handleToggleMode("jobz")}
-            activeOpacity={0.8}
-          >
-            <Briefcase size={15} color={appMode === "jobz" ? "#FFFFFF" : "#475569"} />
-            <Text style={[styles.modeBtnText, appMode === "jobz" && styles.modeBtnTextActive]}>
-              Jobz CRM
-            </Text>
-          </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+          <View style={styles.jobzBrandBadge}>
+            <Briefcase size={14} color="#FFFFFF" strokeWidth={2.5} />
+            <Text style={styles.jobzBrandText}>WeGrow Jobz</Text>
+          </View>
+          <View style={styles.dialerIndicatorPill}>
+            <View style={styles.greenPulseDot} />
+            <Text style={styles.dialerIndicatorText}>Google Dialer</Text>
+          </View>
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -465,6 +452,43 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
+  },
+  jobzBrandBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#0D9488",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  jobzBrandText: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    letterSpacing: 0.3,
+  },
+  dialerIndicatorPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  greenPulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#16A34A",
+  },
+  dialerIndicatorText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#15803D",
   },
   modeSwitcher: {
     flexDirection: "row",

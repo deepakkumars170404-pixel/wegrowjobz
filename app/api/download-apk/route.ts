@@ -3,7 +3,10 @@ import fs from "fs";
 import path from "path";
 
 export async function GET() {
-  const apkPath = path.resolve(process.cwd(), "WegrowTelecaller_Jobz.apk");
+  let apkPath = path.resolve(process.cwd(), "WegrowJobz.apk");
+  if (!fs.existsSync(apkPath)) {
+    apkPath = path.resolve(process.cwd(), "WegrowTelecaller_Jobz.apk");
+  }
 
   if (!fs.existsSync(apkPath)) {
     return NextResponse.json({ error: "APK build not found on server" }, { status: 404 });
@@ -25,7 +28,7 @@ export async function GET() {
     status: 200,
     headers: {
       "Content-Type": "application/vnd.android.package-archive",
-      "Content-Disposition": 'attachment; filename="WegrowTelecaller_Jobz.apk"',
+      "Content-Disposition": 'attachment; filename="WegrowJobz.apk"',
       "Content-Length": fileStat.size.toString(),
       "Cache-Control": "no-cache",
     },

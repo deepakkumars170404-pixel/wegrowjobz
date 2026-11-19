@@ -111,11 +111,11 @@ android {
 
     namespace 'com.wegrow.telecaller'
     defaultConfig {
-        applicationId 'com.wegrow.telecaller'
+        applicationId 'com.wegrow.jobz'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.0.3"
+        versionCode 4
+        versionName "1.0.4"
     }
     signingConfigs {
         debug {
