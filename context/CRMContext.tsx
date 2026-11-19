@@ -1360,6 +1360,23 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLeads(updatedLeads);
     }
 
+    // Immediately persist to Supabase follow_ups table
+    if (isSupabaseConfigured() && supabase) {
+      supabase
+        .from("follow_ups")
+        .update({ status: "Completed" })
+        .eq("id", id)
+        .then(() => {}, () => {});
+
+      if (targetTask && targetTask.leadId) {
+        supabase
+          .from("leads")
+          .update({ next_follow_up_date: null, next_follow_up_time: null })
+          .eq("id", targetTask.leadId)
+          .then(() => {}, () => {});
+      }
+    }
+
     persistLeads(updatedLeads, updated);
     showToast({
       type: "success",
@@ -1388,6 +1405,20 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     setFollowUps(updatedFu);
 
+    if (isSupabaseConfigured() && supabase) {
+      supabase
+        .from("follow_ups")
+        .update({ status: "Completed" })
+        .eq("lead_id", leadId)
+        .then(() => {}, () => {});
+
+      supabase
+        .from("leads")
+        .update({ next_follow_up_date: null, next_follow_up_time: null })
+        .eq("id", leadId)
+        .then(() => {}, () => {});
+    }
+
     persistLeads(updatedLeads, updatedFu);
     showToast({
       type: "success",
@@ -1414,6 +1445,20 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : fu
     );
     setFollowUps(updated);
+
+    if (isSupabaseConfigured() && supabase) {
+      supabase
+        .from("follow_ups")
+        .update({
+          scheduled_date: newDate,
+          scheduled_time: newTime,
+          status: "Pending",
+          remarks: remarks || "",
+        })
+        .eq("id", id)
+        .then(() => {}, () => {});
+    }
+
     persistLeads(leads, updated);
     showToast({
       type: "info",
@@ -1429,11 +1474,30 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     const updated = [newTask, ...followUps];
     setFollowUps(updated);
+
+    if (isSupabaseConfigured() && supabase) {
+      supabase
+        .from("follow_ups")
+        .insert({
+          id: newTask.id,
+          lead_id: newTask.leadId || null,
+          student_name: newTask.studentName || "",
+          phone: newTask.phone || "",
+          caller_name: newTask.assignedCaller || "Staff",
+          course: newTask.course || "",
+          scheduled_date: newTask.followUpDate || "",
+          scheduled_time: newTask.followUpTime || "10:30 AM",
+          status: "Pending",
+          remarks: newTask.remarks || "",
+        })
+        .then(() => {}, () => {});
+    }
+
     persistLeads(leads, updated);
     showToast({
       type: "success",
       title: "Follow-up Scheduled",
-      message: `Scheduled for ${task.studentName} on ${task.followUpDate}.`,
+      message: `Follow-up scheduled for ${task.studentName} on ${task.followUpDate}.`,
     });
   };
 

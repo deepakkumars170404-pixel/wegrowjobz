@@ -87,20 +87,37 @@ export async function GET() {
           })),
         }));
 
-        const mappedFollowUps = (dbFollowUps || []).map((f: any) => ({
-          id: f.id,
-          leadId: f.lead_id,
-          studentName: f.student_name,
-          phone: f.phone,
-          course: f.course,
-          assignedCaller: f.caller_name,
-          lastContacted: f.created_at,
-          followUpDate: f.scheduled_date,
-          followUpTime: f.scheduled_time || "10:30 AM",
-          status: f.status || "Pending",
-          priority: "Hot",
-          remarks: f.remarks || "",
-        }));
+        const todayStr = new Date().toISOString().split("T")[0];
+        const tmrw = new Date();
+        tmrw.setDate(tmrw.getDate() + 1);
+        const tomorrowStr = tmrw.toISOString().split("T")[0];
+
+        const mappedFollowUps = (dbFollowUps || []).map((f: any) => {
+          let computedStatus = f.status || "Today";
+          if (f.status === "Completed") {
+            computedStatus = "Completed";
+          } else if (f.scheduled_date) {
+            if (f.scheduled_date < todayStr) computedStatus = "Overdue";
+            else if (f.scheduled_date === todayStr) computedStatus = "Today";
+            else if (f.scheduled_date === tomorrowStr) computedStatus = "Tomorrow";
+            else computedStatus = "Upcoming";
+          }
+
+          return {
+            id: f.id,
+            leadId: f.lead_id,
+            studentName: f.student_name,
+            phone: f.phone,
+            course: f.course,
+            assignedCaller: f.caller_name,
+            lastContacted: f.created_at,
+            followUpDate: f.scheduled_date,
+            followUpTime: f.scheduled_time || "10:30 AM",
+            status: computedStatus,
+            priority: "Hot",
+            remarks: f.remarks || "",
+          };
+        });
 
         // Deduplicate leads by 10-digit phone number, filtering out dummy test rows
         const seenPhones = new Set<string>();
@@ -204,9 +221,26 @@ export async function POST(request: Request) {
         last_call_date: l.lastCallDate || null,
         last_call_outcome: l.lastCallOutcome || null,
       }));
-      await supabase.from("jobz_leads").upsert(leadsToUpsert, { onConflict: "id" });
+      await supabase.from("leads").upsert(leadsToUpsert, { onConflict: "id" });
 
-      // Upsert each call in callHistory to Supabase jobz_calls table
+      // Upsert follow_ups to Supabase follow_ups table
+      if (Array.isArray(followUps) && followUps.length > 0) {
+        const fuToUpsert = followUps.map((f: any) => ({
+          id: f.id,
+          lead_id: f.leadId || null,
+          student_name: f.studentName || "",
+          phone: f.phone || "",
+          caller_name: f.assignedCaller || f.caller_name || "Staff",
+          course: f.course || "",
+          scheduled_date: f.followUpDate || f.scheduled_date || "",
+          scheduled_time: f.followUpTime || f.scheduled_time || "10:30 AM",
+          status: f.status === "Completed" ? "Completed" : "Pending",
+          remarks: f.remarks || "",
+        }));
+        await supabase.from("follow_ups").upsert(fuToUpsert, { onConflict: "id" });
+      }
+
+      // Upsert each call in callHistory to Supabase calls table
       const callsToUpsert: any[] = [];
       leads.forEach((l: any) => {
         if (Array.isArray(l.callHistory)) {
@@ -249,7 +283,7 @@ export async function POST(request: Request) {
       });
 
       if (callsToUpsert.length > 0) {
-        await supabase.from("jobz_calls").upsert(callsToUpsert, { onConflict: "id" });
+        await supabase.from("calls").upsert(callsToUpsert, { onConflict: "id" });
       }
     }
 
