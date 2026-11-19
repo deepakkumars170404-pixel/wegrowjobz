@@ -72,6 +72,12 @@ export default function App() {
 
   const isCallingRef = useRef<boolean>(false);
 
+  // Track when dial session started for recording lookup
+  const dialSessionStartMsRef = useRef<number>(0);
+
+  // Recording path found after call ended (passed to CallModal)
+  const [modalRecordingPath, setModalRecordingPath] = useState<string | undefined>(undefined);
+
   // Initialize App Mode, Settings and Attendance Gate
   useEffect(() => {
     (async () => {
@@ -203,6 +209,7 @@ export default function App() {
     startMs?: number;
     endMs?: number;
     lead: Lead | null;
+    recordingPath?: string;
   }) => {
     isCallingRef.current = false;
 
@@ -227,11 +234,13 @@ export default function App() {
     setModalDuration(callData.durationSeconds);
     setModalStartMs(callData.startMs);
     setModalEndMs(callData.endMs);
+    setModalRecordingPath(callData.recordingPath);
     setIsModalVisible(true);
     setCompletedCallsCount((c) => c + 1);
   };
 
   // Auto-detect returning from Google Dialer: Opens Post-Call Feedback Form automatically!
+  // FIX: Verify via CallLog that call actually happened before opening form
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (nextAppState === "active") {
@@ -239,38 +248,73 @@ export default function App() {
         if (session) {
           TelephonyService.clearActiveDialSession();
 
-          // Instant microsecond check: reads cellular CallLog and immediately displays the post-call modal
+          // Wait 300ms for CallLog to settle after returning from dialer
           setTimeout(async () => {
             let exactDuration: number | null = null;
             let startMs: number | undefined = undefined;
             let endMs: number | undefined = undefined;
+            let callActuallyHappened = false;
+
             try {
               const lastLog = await TelephonyService.getLastCallLog(session.phone);
               if (lastLog && typeof lastLog.durationSeconds === "number") {
-                exactDuration = lastLog.durationSeconds;
-                if (lastLog.startTimestamp) startMs = lastLog.startTimestamp;
-                if (lastLog.endTimestamp) endMs = lastLog.endTimestamp;
+                // KEY FIX: Check if the CallLog entry is recent (within last 60 seconds)
+                // AND that the call log timestamp is AFTER our dial session started
+                const logTimestamp = lastLog.timestamp || 0;
+                const isRecentCall = logTimestamp > session.startTime - 5000; // 5s buffer
+                // CallType 1=Outgoing, 3=Missed, 2=Incoming. Duration>0 means answered.
+                const callType = lastLog.callType;
+                const isOutgoing = callType === 1 || callType === 2; // Outgoing or answered
+                const wasAnswered = lastLog.durationSeconds > 0;
+                const wasMissed = callType === 3 || callType === 5 || callType === 6; // missed/rejected
+
+                if (isRecentCall && (wasAnswered || wasMissed || isOutgoing)) {
+                  callActuallyHappened = true;
+                  exactDuration = lastLog.durationSeconds;
+                  if (lastLog.startTimestamp) startMs = lastLog.startTimestamp;
+                  if (lastLog.endTimestamp) endMs = lastLog.endTimestamp;
+                }
               }
             } catch {}
 
-            const elapsed = Math.max(1, Math.round((Date.now() - session.startTime) / 1000));
-            const finalDuration = exactDuration !== null ? exactDuration : elapsed;
+            // Only open form if the call log confirms the call actually took place
+            if (!callActuallyHappened) {
+              console.log("[WeGrow] No recent call log found — user returned without calling. Form skipped.");
+              return;
+            }
+
+            const finalDuration = exactDuration !== null ? exactDuration : 0;
             if (!startMs) startMs = session.startTime;
             if (!endMs) endMs = Date.now();
 
-            // Trigger if telecaller spent at least 2 seconds in the dialer
-            if (elapsed >= 2) {
-              const cachedLead = await StorageService.lookupLeadUnified(session.phone);
-              handleCallEnded({
-                phoneNumber: session.phone,
-                studentName: session.name,
-                durationSeconds: finalDuration,
-                startMs,
-                endMs,
-                lead: cachedLead ? { ...cachedLead, phone: session.phone } : null,
-              });
+            const cachedLead = await StorageService.lookupLeadUnified(session.phone);
+
+            // ── RECORDING AUTO-FETCH ──
+            // After confirming call happened, search system phone's recording folder
+            // for any new audio file created after the dial session started
+            let recordingPath: string | undefined = undefined;
+            try {
+              // Wait a bit more for recording file to be finalized by system recorder
+              await new Promise(res => setTimeout(res, 1500));
+              const rec = await TelephonyService.getLatestCallRecording(session.startTime);
+              if (rec && rec.path) {
+                recordingPath = rec.path;
+                console.log("[WeGrow] Call recording found:", rec.name, rec.size, "bytes");
+              }
+            } catch (e) {
+              console.warn("[WeGrow] Recording fetch failed:", e);
             }
-          }, 50);
+
+            handleCallEnded({
+              phoneNumber: session.phone,
+              studentName: session.name,
+              durationSeconds: finalDuration,
+              startMs,
+              endMs,
+              lead: cachedLead ? { ...cachedLead, phone: session.phone } : null,
+              recordingPath,
+            });
+          }, 300);
         }
       }
     };
@@ -347,6 +391,7 @@ export default function App() {
         startMs={modalStartMs}
         endMs={modalEndMs}
         appMode={appMode}
+        recordingPath={modalRecordingPath}
         onClose={() => setIsModalVisible(false)}
         onSaveSuccess={() => {
           setIsModalVisible(false);

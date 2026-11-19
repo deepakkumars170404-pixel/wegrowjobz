@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -592,6 +593,147 @@ class WegrowTelephonyModule(private val reactContext: ReactApplicationContext) :
             context.startActivity(intent)
         } catch (e: Exception) {
             Log.e(TAG, "Error launching package installer: ${e.message}", e)
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CALL RECORDING FINDER — Locates the latest recording saved by System Phone
+    // Works with: Xiaomi, Samsung, Realme, Oppo, Vivo, OnePlus built-in auto-recorders
+    // ─────────────────────────────────────────────────────────────────────────
+    @ReactMethod
+    fun getLatestCallRecording(afterTimestampMs: Double, promise: Promise) {
+        try {
+            val afterMs = afterTimestampMs.toLong()
+
+            // All known recording folder paths across different Android manufacturers
+            val searchDirs = mutableListOf<File>()
+
+            // 1. Standard MediaStore query first (most reliable across Android 10+)
+            val mediaStoreFile = findViaMediaStore(afterMs)
+            if (mediaStoreFile != null) {
+                promise.resolve(mediaStoreFile)
+                return
+            }
+
+            // 2. Manufacturer-specific folders
+            val externalStorage = Environment.getExternalStorageDirectory()
+            val candidates = listOf(
+                // Xiaomi / MIUI
+                File(externalStorage, "MIUI/sound_recorder/call_rec"),
+                File(externalStorage, "Recordings/Call"),
+                File(externalStorage, "recordings/call"),
+                // Samsung
+                File(externalStorage, "Call"),
+                File(externalStorage, "PhoneRecord"),
+                // Realme / Oppo / ColorOS
+                File(externalStorage, "ColorOS/PhoneRecord"),
+                File(externalStorage, "ColorOS/Recording/CallRecord"),
+                File(externalStorage, "Recorder/PhoneRecord"),
+                // Vivo / FuntouchOS
+                File(externalStorage, "Record/PhoneRecord"),
+                File(externalStorage, "BBKRecorder/PhoneRecord"),
+                // OnePlus / OxygenOS
+                File(externalStorage, "CallRecordings"),
+                File(externalStorage, "OnePlus/CallRecordings"),
+                // Generic
+                File(externalStorage, "PhoneRecordings"),
+                File(externalStorage, "CallRecord"),
+                File(externalStorage, "Sounds"),
+                // App-specific internal storage
+                File(reactContext.getExternalFilesDir(null), "CallRecordings"),
+                File(reactContext.filesDir, "CallRecordings")
+            )
+
+            var latestFile: File? = null
+            var latestModified = afterMs
+
+            for (dir in candidates) {
+                if (!dir.exists() || !dir.isDirectory) continue
+                try {
+                    dir.listFiles()?.forEach { f ->
+                        val ext = f.extension.lowercase()
+                        if ((ext == "mp3" || ext == "m4a" || ext == "aac" || ext == "amr" || ext == "wav" || ext == "3gp") &&
+                            f.lastModified() > latestModified
+                        ) {
+                            latestModified = f.lastModified()
+                            latestFile = f
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Cannot read dir ${dir.absolutePath}: ${e.message}")
+                }
+            }
+
+            if (latestFile != null) {
+                val map = Arguments.createMap().apply {
+                    putString("path", latestFile!!.absolutePath)
+                    putString("name", latestFile!!.name)
+                    putDouble("size", latestFile!!.length().toDouble())
+                    putDouble("lastModified", latestFile!!.lastModified().toDouble())
+                }
+                promise.resolve(map)
+            } else {
+                promise.resolve(null)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getLatestCallRecording error: ${e.message}", e)
+            promise.resolve(null)
+        }
+    }
+
+    private fun findViaMediaStore(afterMs: Long): com.facebook.react.bridge.WritableMap? {
+        return try {
+            val uri = android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+            val projection = arrayOf(
+                android.provider.MediaStore.Audio.Media.DATA,
+                android.provider.MediaStore.Audio.Media.DISPLAY_NAME,
+                android.provider.MediaStore.Audio.Media.SIZE,
+                android.provider.MediaStore.Audio.Media.DATE_MODIFIED
+            )
+            // Look for audio files modified after the call started
+            val afterSecs = afterMs / 1000
+            val selection = "${android.provider.MediaStore.Audio.Media.DATE_MODIFIED} > ?"
+            val selectionArgs = arrayOf(afterSecs.toString())
+            val sortOrder = "${android.provider.MediaStore.Audio.Media.DATE_MODIFIED} DESC"
+
+            var resultMap: com.facebook.react.bridge.WritableMap? = null
+
+            reactContext.contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val pathIdx = cursor.getColumnIndex(android.provider.MediaStore.Audio.Media.DATA)
+                    val nameIdx = cursor.getColumnIndex(android.provider.MediaStore.Audio.Media.DISPLAY_NAME)
+                    val sizeIdx = cursor.getColumnIndex(android.provider.MediaStore.Audio.Media.SIZE)
+                    val dateIdx = cursor.getColumnIndex(android.provider.MediaStore.Audio.Media.DATE_MODIFIED)
+
+                    val path = if (pathIdx != -1) cursor.getString(pathIdx) ?: "" else ""
+                    val name = if (nameIdx != -1) cursor.getString(nameIdx) ?: "" else path.substringAfterLast("/")
+
+                    // Heuristic: file name usually contains "call", "record", "phone" etc.
+                    val lowerName = name.lowercase()
+                    val isLikelyCallRecording = lowerName.contains("call") ||
+                        lowerName.contains("record") ||
+                        lowerName.contains("phone") ||
+                        lowerName.contains("rec_") ||
+                        path.lowercase().contains("call") ||
+                        path.lowercase().contains("record")
+
+                    if (path.isNotEmpty() && isLikelyCallRecording) {
+                        val size = if (sizeIdx != -1) cursor.getLong(sizeIdx) else 0L
+                        val dateModified = if (dateIdx != -1) cursor.getLong(dateIdx) * 1000L else 0L
+
+                        resultMap = Arguments.createMap().apply {
+                            putString("path", path)
+                            putString("name", name)
+                            putDouble("size", size.toDouble())
+                            putDouble("lastModified", dateModified.toDouble())
+                        }
+                    }
+                }
+            }
+            resultMap
+        } catch (e: Exception) {
+            Log.w(TAG, "MediaStore query failed: ${e.message}")
+            null
         }
     }
 }

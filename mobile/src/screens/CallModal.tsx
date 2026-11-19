@@ -43,6 +43,7 @@ interface CallModalProps {
   startMs?: number;
   endMs?: number;
   appMode?: AppMode;
+  recordingPath?: string;
   onClose: () => void;
   onSaveSuccess: () => void;
 }
@@ -79,10 +80,12 @@ export const CallModal: React.FC<CallModalProps> = ({
   startMs,
   endMs,
   appMode = "jobz",
+  recordingPath,
   onClose,
   onSaveSuccess,
 }) => {
   const isJobz = appMode === "jobz";
+  const [recordingFound, setRecordingFound] = useState<string | undefined>(recordingPath);
 
   const [callerName, setCallerName] = useState<StaffMember>("MuthuSelvi");
   const [candidateName, setCandidateName] = useState("");
@@ -168,8 +171,11 @@ export const CallModal: React.FC<CallModalProps> = ({
       setShowCourseSuggestions(false);
       setCollegeQuery("");
       setShowCollegeSuggestions(false);
+
+      // Sync recording path when modal opens
+      setRecordingFound(recordingPath);
     }
-  }, [lead, visible, durationSeconds, startMs, endMs, isJobz]);
+  }, [lead, visible, durationSeconds, startMs, endMs, isJobz, recordingPath]);
 
   const activeDispositions = isJobz ? JOBZ_DISPOSITIONS : ADMISSION_DISPOSITIONS;
   const isFirstTimeCaller = !lead?.callCount || lead.callCount === 0;
@@ -334,6 +340,36 @@ export const CallModal: React.FC<CallModalProps> = ({
                 <Text style={styles.timeRangeText}>🟢 Call Start: {startTimeStr}</Text>
                 <Text style={styles.timeRangeText}>🔴 Call End: {endTimeStr}</Text>
               </View>
+
+              {/* Call Recording Badge */}
+              {recordingFound ? (
+                <View style={{
+                  flexDirection: "row", alignItems: "center", gap: 6,
+                  backgroundColor: "#DCFCE7", borderRadius: 8, padding: 8, marginTop: 6,
+                  borderWidth: 1, borderColor: "#16A34A"
+                }}>
+                  <Text style={{ fontSize: 14 }}>🎙️</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#15803D" }}>
+                      Call Recording Found ✓
+                    </Text>
+                    <Text style={{ fontSize: 10, color: "#166534" }} numberOfLines={1}>
+                      {recordingFound.split("/").pop()}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={{
+                  flexDirection: "row", alignItems: "center", gap: 6,
+                  backgroundColor: "#FEF9C3", borderRadius: 8, padding: 8, marginTop: 6,
+                  borderWidth: 1, borderColor: "#CA8A04"
+                }}>
+                  <Text style={{ fontSize: 12 }}>💡</Text>
+                  <Text style={{ fontSize: 10, color: "#92400E", flex: 1 }}>
+                    No recording found. Enable "Auto Record Calls" in your Phone app settings.
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Calling Staff Member Selection Chips (Click your name to save) */}

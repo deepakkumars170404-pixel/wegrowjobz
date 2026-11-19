@@ -337,4 +337,27 @@ export const TelephonyService = {
     Linking.openURL(apkUrl).catch(() => {});
     return true;
   },
+
+  /**
+   * CALL RECORDING FINDER
+   * Finds the latest call recording saved by the phone's built-in auto-recorder
+   * (Xiaomi/Samsung/Realme/Oppo/Vivo/OnePlus) after a given timestamp.
+   * Returns file path, name, size, lastModified — or null if not found.
+   */
+  async getLatestCallRecording(afterTimestampMs: number): Promise<{
+    path: string;
+    name: string;
+    size: number;
+    lastModified: number;
+  } | null> {
+    if (Platform.OS === "android" && WegrowTelephony?.getLatestCallRecording) {
+      try {
+        const result = await WegrowTelephony.getLatestCallRecording(afterTimestampMs);
+        return result || null;
+      } catch (e) {
+        console.warn("getLatestCallRecording error:", e);
+      }
+    }
+    return null;
+  },
 };
