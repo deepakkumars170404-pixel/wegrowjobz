@@ -26,8 +26,10 @@ export type LeadPriority = "Hot" | "Warm" | "Cold";
 
 export type LeadStatus =
   | "New"
+  | "New Enquiry"
   | "Contacted"
   | "Interested"
+  | "Profile Sent"
   | "Busy"
   | "Call Later"
   | "Not Interested"
@@ -44,6 +46,7 @@ export type PipelineStage =
   | "New Enquiry"
   | "Contacted"
   | "Interested"
+  | "Profile Sent"
   | "Interview Scheduled"
   | "Shortlisted"
   | "Placed"

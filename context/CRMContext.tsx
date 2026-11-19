@@ -1084,22 +1084,36 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateLeadStatus = (id: string, status: LeadStatus, stage?: PipelineStage) => {
+    const finalStage = (stage || status) as PipelineStage;
     const newLeads = leads.map((lead) => {
       if (lead.id === id) {
         return {
           ...lead,
           status,
-          stage: stage || (status as unknown as PipelineStage),
+          stage: finalStage,
         };
       }
       return lead;
     });
     setLeads(newLeads);
     persistLeads(newLeads);
+
+    // Direct synchronous update to Supabase so polling never reverts the stage
+    if (isSupabaseConfigured() && supabase) {
+      supabase
+        .from("leads")
+        .update({
+          status: status,
+          stage: finalStage,
+        })
+        .eq("id", id)
+        .then(() => {}, () => {});
+    }
+
     showToast({
       type: "success",
-      title: "Status Changed",
-      message: `Lead #${id} status updated to ${status}.`,
+      title: "Stage Advanced",
+      message: `Lead #${id} moved to "${finalStage}".`,
     });
   };
 
