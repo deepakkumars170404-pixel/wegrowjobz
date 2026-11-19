@@ -32,12 +32,16 @@ import {
   DollarSign,
   MessageSquare,
   Check,
+  ShieldCheck,
+  Lock,
 } from "lucide-react-native";
 
 interface CallModalProps {
   visible: boolean;
   lead: Lead | null;
   durationSeconds: number;
+  startMs?: number;
+  endMs?: number;
   appMode?: AppMode;
   onClose: () => void;
   onSaveSuccess: () => void;
@@ -72,6 +76,8 @@ export const CallModal: React.FC<CallModalProps> = ({
   visible,
   lead,
   durationSeconds,
+  startMs,
+  endMs,
   appMode = "jobz",
   onClose,
   onSaveSuccess,
@@ -131,8 +137,10 @@ export const CallModal: React.FC<CallModalProps> = ({
       setCandidateName(lead.studentName || "");
       setPhoneNumber(lead.phone || "");
 
-      const endD = new Date();
-      const startD = new Date(endD.getTime() - durationSeconds * 1000);
+      const endD = endMs ? new Date(endMs) : new Date();
+      const startD = startMs
+        ? new Date(startMs)
+        : new Date(endD.getTime() - durationSeconds * 1000);
       setEndTimeStr(formatTimeSec(endD));
       setStartTimeStr(formatTimeSec(startD));
 
@@ -161,15 +169,7 @@ export const CallModal: React.FC<CallModalProps> = ({
       setCollegeQuery("");
       setShowCollegeSuggestions(false);
     }
-  }, [lead, visible, durationSeconds, isJobz]);
-
-  const handleAdjustDuration = (newSecs: number) => {
-    const valid = Math.max(0, newSecs);
-    setDurationSec(valid);
-    const endD = new Date();
-    const startD = new Date(endD.getTime() - valid * 1000);
-    setStartTimeStr(formatTimeSec(startD));
-  };
+  }, [lead, visible, durationSeconds, startMs, endMs, isJobz]);
 
   const activeDispositions = isJobz ? JOBZ_DISPOSITIONS : ADMISSION_DISPOSITIONS;
   const isFirstTimeCaller = !lead?.callCount || lead.callCount === 0;
@@ -294,8 +294,8 @@ export const CallModal: React.FC<CallModalProps> = ({
           </View>
 
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {/* Accurate Talk Duration Card with Live Clock & Quick Presets */}
-            <View style={styles.durationCard}>
+            {/* Tamper-Proof Carrier Talk Duration Card with Real-time Live Clock */}
+            <View style={styles.durationCardLocked}>
               {/* Live Clock Header */}
               <View style={styles.liveClockHeader}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
@@ -305,88 +305,34 @@ export const CallModal: React.FC<CallModalProps> = ({
                 <LiveClock style={styles.liveClockValue} />
               </View>
 
-              {/* Talk Duration Header & Step Controls */}
-              <View style={styles.durationTopRow}>
-                <View style={styles.durationLeft}>
-                  <Clock size={16} color="#2563EB" />
-                  <Text style={styles.durationTitle}>Talk Time:</Text>
+              {/* Locked Carrier Verification Banner */}
+              <View style={styles.lockedHeaderRow}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <ShieldCheck size={18} color="#15803D" strokeWidth={2.5} />
+                  <Text style={styles.lockedBadgeText}>Carrier Talk Duration</Text>
                 </View>
-                <View style={styles.durationControls}>
-                  <TouchableOpacity
-                    onPress={() => handleAdjustDuration(durationSec - 10)}
-                    style={styles.durBtnSm}
-                  >
-                    <Text style={styles.durBtnText}>-10s</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handleAdjustDuration(durationSec - 5)}
-                    style={styles.durBtn}
-                  >
-                    <Text style={styles.durBtnText}>-5s</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handleAdjustDuration(durationSec - 1)}
-                    style={styles.durBtnSm}
-                  >
-                    <Text style={styles.durBtnText}>-1s</Text>
-                  </TouchableOpacity>
-
-                  <View style={styles.durationDisplayBox}>
-                    <Text style={styles.durationValueText}>
-                      {mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}
-                    </Text>
-                    <Text style={styles.durationSubText}>({durationSec}s total)</Text>
-                  </View>
-
-                  <TouchableOpacity
-                    onPress={() => handleAdjustDuration(durationSec + 1)}
-                    style={styles.durBtnSm}
-                  >
-                    <Text style={styles.durBtnText}>+1s</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handleAdjustDuration(durationSec + 5)}
-                    style={styles.durBtn}
-                  >
-                    <Text style={styles.durBtnText}>+5s</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handleAdjustDuration(durationSec + 10)}
-                    style={styles.durBtnSm}
-                  >
-                    <Text style={styles.durBtnText}>+10s</Text>
-                  </TouchableOpacity>
+                <View style={styles.lockedPill}>
+                  <Lock size={11} color="#15803D" strokeWidth={2.5} />
+                  <Text style={styles.lockedPillText}>SYSTEM VERIFIED (LOCKED)</Text>
                 </View>
               </View>
 
-              {/* Quick Preset Seconds Chips */}
-              <View style={styles.presetChipsRow}>
-                {[0, 10, 15, 20, 30, 45, 60, 120].map((presetSec) => {
-                  const isCurrent = durationSec === presetSec;
-                  const label =
-                    presetSec === 0
-                      ? "0s (Missed)"
-                      : presetSec >= 60
-                      ? `${Math.floor(presetSec / 60)}m`
-                      : `${presetSec}s`;
-                  return (
-                    <TouchableOpacity
-                      key={presetSec}
-                      onPress={() => handleAdjustDuration(presetSec)}
-                      style={[styles.presetChip, isCurrent && styles.presetChipActive]}
-                    >
-                      <Text style={[styles.presetChipText, isCurrent && styles.presetChipTextActive]}>
-                        {label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+              {/* Big Duration Display */}
+              <View style={styles.durationBigDisplay}>
+                <Text style={styles.durationBigValue}>
+                  {mins > 0 ? `${mins}m ${secs.toString().padStart(2, "0")}s` : `${secs}s`}
+                </Text>
+                <Text style={styles.durationBigSub}>
+                  {durationSec > 0
+                    ? `✓ Spoken Talk Time: ${durationSec} seconds (Read-only / Tamper-proof)`
+                    : "⚠️ Call not answered / Missed Call (0 seconds)"}
+                </Text>
               </View>
 
               {/* Exact Timeline */}
               <View style={styles.timeRangeRow}>
-                <Text style={styles.timeRangeText}>🟢 Start: {startTimeStr}</Text>
-                <Text style={styles.timeRangeText}>🔴 End: {endTimeStr}</Text>
+                <Text style={styles.timeRangeText}>🟢 Call Start: {startTimeStr}</Text>
+                <Text style={styles.timeRangeText}>🔴 Call End: {endTimeStr}</Text>
               </View>
             </View>
 
@@ -769,11 +715,11 @@ const styles = StyleSheet.create({
   modalBody: {
     padding: 16,
   },
-  durationCard: {
+  durationCardLocked: {
     backgroundColor: "#F0FDF4",
     borderWidth: 1.5,
-    borderColor: "#BBF7D0",
-    borderRadius: 12,
+    borderColor: "#86EFAC",
+    borderRadius: 14,
     padding: 12,
     marginBottom: 14,
   },
@@ -785,7 +731,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   liveGreenDot: {
     width: 7,
@@ -804,28 +750,23 @@ const styles = StyleSheet.create({
     color: "#14532D",
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
-  durationTopRow: {
+  lockedHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  durationLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+  lockedBadgeText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#166534",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  durationTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#15803D",
-  },
-  durationControls: {
+  lockedPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-  },
-  durBtn: {
     backgroundColor: "#DCFCE7",
     paddingHorizontal: 7,
     paddingVertical: 3,
@@ -833,64 +774,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#86EFAC",
   },
-  durBtnSm: {
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 5,
-    paddingVertical: 3,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
+  lockedPillText: {
+    fontSize: 9.5,
+    fontWeight: "900",
+    color: "#15803D",
+    letterSpacing: 0.4,
   },
-  durationDisplayBox: {
+  durationBigDisplay: {
     alignItems: "center",
-    paddingHorizontal: 4,
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    marginVertical: 4,
   },
-  durBtnText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: "#166534",
-  },
-  durationValueText: {
-    fontSize: 15,
+  durationBigValue: {
+    fontSize: 26,
     fontWeight: "900",
     color: "#14532D",
+    letterSpacing: 0.5,
   },
-  durationSubText: {
-    fontSize: 9.5,
+  durationBigSub: {
+    fontSize: 11,
     fontWeight: "600",
     color: "#15803D",
-  },
-  presetChipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 4,
-    marginVertical: 6,
-  },
-  presetChip: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#86EFAC",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  presetChipActive: {
-    backgroundColor: "#16A34A",
-    borderColor: "#15803D",
-  },
-  presetChipText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#166534",
-  },
-  presetChipTextActive: {
-    color: "#FFFFFF",
+    marginTop: 2,
+    textAlign: "center",
   },
   timeRangeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 6,
-    paddingTop: 6,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: "#DCFCE7",
   },

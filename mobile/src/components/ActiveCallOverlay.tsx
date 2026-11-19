@@ -45,6 +45,8 @@ interface ActiveCallOverlayProps {
     phoneNumber: string;
     studentName: string;
     durationSeconds: number;
+    startMs?: number;
+    endMs?: number;
     lead: Lead | null;
   }) => void;
   onCallStarted?: () => void;
@@ -263,6 +265,9 @@ export const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({
         const resolvedName = contactName || matchedLead?.studentName || "Student Enquiry";
         const currentPhone = phone || currentPhoneNumberRef.current;
 
+        const endNow = Date.now();
+        const startNow = activeCallStartRef.current || (endNow - finalSecs * 1000);
+
         setCallState("IDLE");
         activeCallStartRef.current = null;
         setShowKeypad(false);
@@ -275,6 +280,8 @@ export const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({
             phoneNumber: currentPhone,
             studentName: resolvedName,
             durationSeconds: finalSecs,
+            startMs: startNow,
+            endMs: endNow,
             lead: matchedLead,
           });
         }

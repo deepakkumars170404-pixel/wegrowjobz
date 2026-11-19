@@ -18,6 +18,8 @@ export const ApiService = {
   },
 
   async fetchTodayQueue(): Promise<{ success: boolean; leads: Lead[]; error?: string }> {
+    const activeMode = await StorageService.getAppMode();
+    const isJobz = activeMode === "jobz";
     const leadsTable = "leads";
     const followUpsTable = "follow_ups";
     const callsRelation = "calls(*)";

@@ -1,5 +1,4 @@
 import "react-native-url-polyfill/auto";
-import { registerRootComponent } from "expo";
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -40,6 +39,8 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<Tab>("queue");
   const [modalLead, setModalLead] = useState<Lead | null>(null);
   const [modalDuration, setModalDuration] = useState<number>(0);
+  const [modalStartMs, setModalStartMs] = useState<number | undefined>(undefined);
+  const [modalEndMs, setModalEndMs] = useState<number | undefined>(undefined);
   const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
   const [activeStaff, setActiveStaff] = useState<StaffMember>("MuthuSelvi");
 
@@ -198,6 +199,8 @@ export default function App() {
     phoneNumber: string;
     studentName: string;
     durationSeconds: number;
+    startMs?: number;
+    endMs?: number;
     lead: Lead | null;
   }) => {
     isCallingRef.current = false;
@@ -221,6 +224,8 @@ export default function App() {
 
     setModalLead(targetLead);
     setModalDuration(callData.durationSeconds);
+    setModalStartMs(callData.startMs);
+    setModalEndMs(callData.endMs);
     setIsModalVisible(true);
     setCompletedCallsCount((c) => c + 1);
   };
@@ -236,15 +241,21 @@ export default function App() {
           // Wait 400ms so Android telephony provider writes the cellular CallLog record
           setTimeout(async () => {
             let exactDuration: number | null = null;
+            let startMs: number | undefined = undefined;
+            let endMs: number | undefined = undefined;
             try {
               const lastLog = await TelephonyService.getLastCallLog(session.phone);
               if (lastLog && typeof lastLog.durationSeconds === "number") {
                 exactDuration = lastLog.durationSeconds;
+                if (lastLog.startTimestamp) startMs = lastLog.startTimestamp;
+                if (lastLog.endTimestamp) endMs = lastLog.endTimestamp;
               }
             } catch {}
 
             const elapsed = Math.max(1, Math.round((Date.now() - session.startTime) / 1000));
             const finalDuration = exactDuration !== null ? exactDuration : elapsed;
+            if (!startMs) startMs = session.startTime;
+            if (!endMs) endMs = Date.now();
 
             // Trigger if telecaller spent at least 2 seconds in the dialer
             if (elapsed >= 2) {
@@ -253,6 +264,8 @@ export default function App() {
                 phoneNumber: session.phone,
                 studentName: session.name,
                 durationSeconds: finalDuration,
+                startMs,
+                endMs,
                 lead: cachedLead ? { ...cachedLead, phone: session.phone } : null,
               });
             }
@@ -358,6 +371,8 @@ export default function App() {
         visible={isModalVisible}
         lead={modalLead}
         durationSeconds={modalDuration}
+        startMs={modalStartMs}
+        endMs={modalEndMs}
         appMode={appMode}
         onClose={() => setIsModalVisible(false)}
         onSaveSuccess={() => {
@@ -540,5 +555,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-
-registerRootComponent(App);

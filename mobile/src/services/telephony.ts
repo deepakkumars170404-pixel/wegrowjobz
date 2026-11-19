@@ -1,5 +1,6 @@
 import * as Linking from "expo-linking";
 import { Alert, NativeEventEmitter, NativeModules, Platform } from "react-native";
+import { StorageService } from "./storage";
 
 const { WegrowTelephony } = NativeModules;
 const telephonyEmitter = WegrowTelephony ? new NativeEventEmitter(WegrowTelephony) : null;
@@ -70,6 +71,8 @@ export const TelephonyService = {
     number: string;
     durationSeconds: number;
     timestamp: number;
+    startTimestamp?: number;
+    endTimestamp?: number;
     callType: number;
   } | null> {
     if (Platform.OS === "android" && WegrowTelephony?.getLastCallLog) {
