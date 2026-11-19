@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
@@ -238,7 +239,7 @@ export default function App() {
         if (session) {
           TelephonyService.clearActiveDialSession();
 
-          // Wait 400ms so Android telephony provider writes the cellular CallLog record
+          // Instant microsecond check: reads cellular CallLog and immediately displays the post-call modal
           setTimeout(async () => {
             let exactDuration: number | null = null;
             let startMs: number | undefined = undefined;
@@ -269,7 +270,7 @@ export default function App() {
                 lead: cachedLead ? { ...cachedLead, phone: session.phone } : null,
               });
             }
-          }, 400);
+          }, 50);
         }
       }
     };
@@ -282,30 +283,15 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" backgroundColor="#FFFFFF" />
 
-      {/* Top Bar: Dedicated WeGrow Jobz Branding & Active Dialer Info */}
+      {/* Top Bar: Official WeGrow JobZ Logo & Staff Shortcut */}
       <View style={styles.topBar}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-          <View style={styles.jobzBrandBadge}>
-            <Briefcase size={14} color="#FFFFFF" strokeWidth={2.5} />
-            <Text style={styles.jobzBrandText}>WeGrow Jobz</Text>
-          </View>
-          <View style={styles.dialerIndicatorPill}>
-            <View style={styles.greenPulseDot} />
-            <Text style={styles.dialerIndicatorText}>Google Dialer</Text>
-          </View>
-        </View>
+        <Image
+          source={require("./assets/wegrow_jobz_logo.png")}
+          style={styles.jobzTopLogo}
+          resizeMode="contain"
+        />
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {updateInfo?.hasUpdate && (
-            <TouchableOpacity
-              style={styles.updateBadgeBtn}
-              onPress={() => setIsUpdateModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.updateBadgeText}>Update 🚀</Text>
-            </TouchableOpacity>
-          )}
-
           {/* Change Staff Shortcut */}
           <TouchableOpacity
             style={styles.switchStaffBtn}
@@ -453,42 +439,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
   },
-  jobzBrandBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#0D9488",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  jobzBrandText: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    letterSpacing: 0.3,
-  },
-  dialerIndicatorPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "#F0FDF4",
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  greenPulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#16A34A",
-  },
-  dialerIndicatorText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#15803D",
+  jobzTopLogo: {
+    width: 145,
+    height: 38,
   },
   modeSwitcher: {
     flexDirection: "row",

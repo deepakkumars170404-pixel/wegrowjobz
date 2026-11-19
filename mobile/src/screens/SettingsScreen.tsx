@@ -7,175 +7,42 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  ActivityIndicator,
   Platform,
 } from "react-native";
-import Constants from "expo-constants";
-import { Globe, User, ShieldAlert, Smartphone, RefreshCw, Zap, Check, CheckCircle2, Info, DownloadCloud } from "lucide-react-native";
+import { User, ShieldAlert, Check, CheckCircle2 } from "lucide-react-native";
 import { THEME } from "../constants/theme";
 import { StorageService } from "../services/storage";
 import { ApiService } from "../services/api";
-import { TelephonyService } from "../services/telephony";
 import { AppSettings, WEGROW_STAFF_MEMBERS } from "../types";
-import { AppUpdateModal } from "../components/AppUpdateModal";
 
 export const SettingsScreen: React.FC = () => {
-  const isExpoGo = Constants.appOwnership === "expo";
-  const [admissionUrl, setAdmissionUrl] = useState("https://wegrowcrm.vercel.app");
-  const [jobzUrl, setJobzUrl] = useState("http://192.168.1.41:3001");
   const [callerName, setCallerName] = useState("MuthuSelvi");
   const [localRecording, setLocalRecording] = useState(true);
-  const [testingAdmission, setTestingAdmission] = useState(false);
-  const [testingJobz, setTestingJobz] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
-  const [isDefaultDialer, setIsDefaultDialer] = useState(false);
-  const [currentAppVersion, setCurrentAppVersion] = useState("1.0.0");
-  const [checkingUpdate, setCheckingUpdate] = useState(false);
-  const [updateModalData, setUpdateModalData] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
       const s = await StorageService.getSettings();
-      if (s.admissionServerUrl) setAdmissionUrl(s.admissionServerUrl);
-      if (s.jobzServerUrl) {
-        // If it was still pointing to old 192.168.29.60, auto-update to active 192.168.1.41
-        if (s.jobzServerUrl.includes("192.168.29.60")) {
-          setJobzUrl("http://192.168.1.41:3001");
-          await StorageService.saveSettings({ jobzServerUrl: "http://192.168.1.41:3001" });
-        } else {
-          setJobzUrl(s.jobzServerUrl);
-        }
-      }
       if (s.callerName) setCallerName(s.callerName);
       if (s.localRecordingEnabled !== undefined) setLocalRecording(s.localRecordingEnabled);
       const pending = await StorageService.getPendingCalls();
       setPendingCount(pending.length);
-      const isDef = await TelephonyService.checkIsDefaultDialer();
-      setIsDefaultDialer(isDef);
-
-      const vInfo = await TelephonyService.getAppVersionInfo();
-      if (vInfo?.versionName) setCurrentAppVersion(vInfo.versionName);
     })();
   }, []);
 
-  const handleCheckUpdateManual = async () => {
-    try {
-      setCheckingUpdate(true);
-      const res = await ApiService.checkAppUpdate();
-      setCheckingUpdate(false);
-      if (res && res.hasUpdate) {
-        setUpdateModalData(res);
-      } else {
-        Alert.alert(
-          "App Up-to-Date! ✅",
-          `You are already using the latest version (v${currentAppVersion}). No update required!`
-        );
-      }
-    } catch (err: any) {
-      setCheckingUpdate(false);
-      Alert.alert("Check Failed", "Unable to reach update server. Check Wi-Fi or server connection.");
-    }
-  };
-
-  const handleSetDefaultDialer = async () => {
-    if (isExpoGo) {
-      Alert.alert(
-        "Expo Go Notice",
-        "Setting as 'Default Phone App' is an Android OS system-level feature that only works in the installed standalone APK. In Expo Go, normal calling works via your phone dialer."
-      );
-      return;
-    }
-
-    const isAlready = await TelephonyService.checkIsDefaultDialer();
-    if (isAlready) {
-      Alert.alert(
-        "Already Default",
-        "Wegrow Telecaller is already your phone's default phone app! All calls stay inside Wegrow Telecaller."
-      );
-      setIsDefaultDialer(true);
-      return;
-    }
-    await TelephonyService.promptSetAsDefaultDialer();
-    setTimeout(async () => {
-      const check = await TelephonyService.checkIsDefaultDialer();
-      setIsDefaultDialer(check);
-    }, 1500);
-  };
-
   const handleSave = async () => {
-    const mode = await StorageService.getAppMode();
-    const activeUrl = mode === "admission" ? admissionUrl.trim() : jobzUrl.trim();
+    const current = await StorageService.getSettings();
     const updated: AppSettings = {
-      crmServerUrl: activeUrl,
-      admissionServerUrl: admissionUrl.trim(),
-      jobzServerUrl: jobzUrl.trim(),
+      ...current,
       callerName: callerName.trim(),
       autoPopupDisposition: true,
       strictSafetyBlock: true,
       vibrateOnCall: true,
-      activeAppMode: mode,
+      activeAppMode: "jobz",
       localRecordingEnabled: localRecording,
     };
     await StorageService.saveSettings(updated);
-    Alert.alert("Saved ✓", "Settings updated successfully!");
-  };
-
-  const handleTestAdmission = async () => {
-    setTestingAdmission(true);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
-    try {
-      let url = admissionUrl.trim();
-      if (url.endsWith("/")) url = url.slice(0, -1);
-      const res = await fetch(`${url}/api/leads`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      if (res.ok) {
-        Alert.alert("Admission CRM Connected! ✓", `Successfully reached ${url}`);
-      } else {
-        Alert.alert("Server Reachable", `Server responded with HTTP ${res.status}`);
-      }
-    } catch (err: any) {
-      clearTimeout(timer);
-      Alert.alert(
-        "Connection Notice",
-        `Could not reach ${admissionUrl}.\n\nCheck your phone internet connection.\n\nError: ${err.message}`
-      );
-    } finally {
-      setTestingAdmission(false);
-    }
-  };
-
-  const handleTestJobz = async () => {
-    setTestingJobz(true);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
-    try {
-      let url = jobzUrl.trim();
-      if (url.endsWith("/")) url = url.slice(0, -1);
-      const res = await fetch(`${url}/api/leads`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      if (res.ok) {
-        Alert.alert("Jobz CRM Connected! ✓", `Successfully reached ${url}\nReady for live candidates sync!`);
-      } else {
-        Alert.alert("Server Reachable", `Server responded with HTTP ${res.status}`);
-      }
-    } catch (err: any) {
-      clearTimeout(timer);
-      Alert.alert(
-        "Connection Notice",
-        `Could not reach ${jobzUrl}.\n\nEnsure Phone and PC are on the same Wi-Fi.\nActive PC IP is: 192.168.1.41\n\nError: ${err.message}`
-      );
-    } finally {
-      setTestingJobz(false);
-    }
+    Alert.alert("Saved ✓", "WeGrow Jobz settings updated successfully!");
   };
 
   const handleSyncPending = async () => {
@@ -188,79 +55,8 @@ export const SettingsScreen: React.FC = () => {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>App Settings</Text>
-        <Text style={styles.headerSubtitle}>Wegrow CRM Connection & Caller Profile</Text>
-      </View>
-
-      {/* Dual Server URLs: Admission vs Jobz */}
-      <View style={styles.card}>
-        <Text style={styles.label}>ADMISSION CRM SERVER URL</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. https://wegrowcrm.vercel.app"
-          placeholderTextColor={THEME.colors.textMuted}
-          value={admissionUrl}
-          onChangeText={setAdmissionUrl}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <Text style={styles.helpText}>
-          Auto-used when in 🎓 Admission mode.
-        </Text>
-
-        <TouchableOpacity
-          style={styles.testBtn}
-          onPress={handleTestAdmission}
-          disabled={testingAdmission}
-        >
-          {testingAdmission ? (
-            <ActivityIndicator color="#1D4ED8" />
-          ) : (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Zap size={15} color="#1D4ED8" />
-              <Text style={styles.testBtnText}>Test Admission CRM</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.card}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={styles.label}>JOBZ CRM SERVER URL</Text>
-          <TouchableOpacity
-            onPress={() => setJobzUrl("http://192.168.1.41:3001")}
-            style={{ backgroundColor: "#F0FDFA", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: "#99F6E4" }}
-          >
-            <Text style={{ fontSize: 10, fontWeight: "700", color: "#0D9488" }}>⚡ Auto-Fill 192.168.1.41</Text>
-          </TouchableOpacity>
-        </View>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. http://192.168.1.41:3001"
-          placeholderTextColor={THEME.colors.textMuted}
-          value={jobzUrl}
-          onChangeText={setJobzUrl}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <Text style={styles.helpText}>
-          Auto-used when in 💼 Jobz CRM mode (PC Port 3001).
-        </Text>
-
-        <TouchableOpacity
-          style={styles.testBtn}
-          onPress={handleTestJobz}
-          disabled={testingJobz}
-        >
-          {testingJobz ? (
-            <ActivityIndicator color="#0D9488" />
-          ) : (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Zap size={15} color="#0D9488" />
-              <Text style={[styles.testBtnText, { color: "#0D9488" }]}>Test Jobz CRM</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>WeGrow Jobz Settings</Text>
+        <Text style={styles.headerSubtitle}>Staff Profile, Safety Guard & Sync Management</Text>
       </View>
 
       {/* Telecaller Identity */}
@@ -333,39 +129,6 @@ export const SettingsScreen: React.FC = () => {
         </Text>
       </View>
 
-      {/* Default Dialer Section */}
-      <View style={styles.card}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <Text style={styles.label}>DEFAULT PHONE APP</Text>
-          {isExpoGo ? (
-            <View style={{ backgroundColor: "#FEF3C7", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: "#FCD34D" }}>
-              <Text style={{ color: "#B45309", fontSize: 10, fontWeight: "bold" }}>EXPO GO MODE</Text>
-            </View>
-          ) : isDefaultDialer ? (
-            <View style={{ backgroundColor: "rgba(16, 185, 129, 0.2)", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: "#10B981" }}>
-              <Text style={{ color: "#10B981", fontSize: 10, fontWeight: "bold" }}>ACTIVE DEFAULT</Text>
-            </View>
-          ) : null}
-        </View>
-
-        <Text style={styles.helpText}>
-          {isExpoGo
-            ? "📱 You are currently running in Expo Go. Real phone calls will open your standard SIM dialer. The 'Default Phone App' lock feature is enabled in the standalone APK build."
-            : isDefaultDialer
-            ? "✅ Wegrow Telecaller is currently the Default Phone App on this device! Calls will stay strictly inside Wegrow Telecaller."
-            : "Set Wegrow Telecaller as your phone's default Phone App so all SIM calls stay inside Wegrow Telecaller."}
-        </Text>
-
-        <TouchableOpacity
-          style={[styles.saveBtn, { backgroundColor: isExpoGo ? "#94A3B8" : isDefaultDialer ? THEME.colors.emerald : THEME.colors.gold, marginTop: 12 }]}
-          onPress={handleSetDefaultDialer}
-        >
-          <Text style={styles.saveBtnText}>
-            {isExpoGo ? "📱 Standard SIM Dialer Active (Expo Go)" : isDefaultDialer ? "✅ Default Phone App Active" : "📱 Set as Default Phone App"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Offline Sync Status */}
       <View style={styles.card}>
         <Text style={styles.label}>OFFLINE QUEUE & SYNC</Text>
@@ -405,41 +168,6 @@ export const SettingsScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* App Version & In-App Auto Update */}
-      <View style={styles.card}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <View style={{ flex: 1, marginRight: 10 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <DownloadCloud size={16} color="#2563EB" />
-              <Text style={{ fontSize: 13, fontWeight: "700", color: "#1E293B" }}>App Version & Updates</Text>
-            </View>
-            <Text style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-              Installed: v{currentAppVersion} • In-App One-Click Updater
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={{
-              backgroundColor: checkingUpdate ? "#94A3B8" : "#2563EB",
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 8,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 4,
-            }}
-            onPress={handleCheckUpdateManual}
-            disabled={checkingUpdate}
-            activeOpacity={0.8}
-          >
-            {checkingUpdate ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 11 }}>Check Update</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-
       {/* Save Button */}
       <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -447,19 +175,6 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.saveBtnText}>Save Settings</Text>
         </View>
       </TouchableOpacity>
-
-      {/* In-App Update Modal */}
-      {updateModalData?.hasUpdate && (
-        <AppUpdateModal
-          visible={!!updateModalData}
-          latestVersion={updateModalData.latestVersion || "1.0.2"}
-          currentVersion={currentAppVersion}
-          releaseNotes={updateModalData.releaseNotes || []}
-          apkUrl={updateModalData.apkUrl || ""}
-          forceUpdate={updateModalData.forceUpdate}
-          onDismiss={() => setUpdateModalData(null)}
-        />
-      )}
     </ScrollView>
   );
 };

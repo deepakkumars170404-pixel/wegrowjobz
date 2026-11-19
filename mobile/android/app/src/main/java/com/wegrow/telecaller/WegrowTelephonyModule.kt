@@ -115,6 +115,57 @@ class WegrowTelephonyModule(private val reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun directPhoneCall(phoneNumber: String, promise: Promise) {
+        try {
+            val cleanDigits = phoneNumber.replace(Regex("[^0-9+]"), "")
+            if (cleanDigits.contains("9952337331")) {
+                promise.reject("BLOCKED", "Calling 9952337331 is permanently blocked")
+                return
+            }
+            if (cleanDigits.isEmpty()) {
+                promise.reject("INVALID_NUMBER", "Phone number is empty")
+                return
+            }
+
+            val callUri = Uri.parse("tel:$cleanDigits")
+            // Single-click direct cellular call via Intent.ACTION_CALL
+            // Directly initiates the call through Google Dialer without telecaller having to tap call again!
+            val callIntent = Intent(Intent.ACTION_CALL).apply {
+                data = callUri
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    reactContext,
+                    android.Manifest.permission.CALL_PHONE
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                reactContext.startActivity(callIntent)
+                promise.resolve(true)
+            } else {
+                val dialIntent = Intent(Intent.ACTION_DIAL).apply {
+                    data = callUri
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                reactContext.startActivity(dialIntent)
+                promise.resolve(true)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "directPhoneCall error: ${e.message}", e)
+            try {
+                val dialIntent = Intent(Intent.ACTION_DIAL).apply {
+                    data = Uri.parse("tel:${phoneNumber.replace(Regex("[^0-9+]"), "")}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                reactContext.startActivity(dialIntent)
+                promise.resolve(true)
+            } catch (err: Exception) {
+                promise.reject("CALL_FAILED", err.message)
+            }
+        }
+    }
+
+    @ReactMethod
     fun directCall(phoneNumber: String, promise: Promise) {
         try {
             val cleanDigits = phoneNumber.replace(Regex("[^0-9+]"), "")

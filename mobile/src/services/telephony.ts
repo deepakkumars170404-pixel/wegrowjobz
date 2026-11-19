@@ -132,8 +132,17 @@ export const TelephonyService = {
       }
     }
 
-    // 2. IN JOBZ CRM MODE: ALWAYS USE GOOGLE DIALER!
-    if (activeAppMode === "jobz") {
+    // 2. IN JOBZ CRM MODE: 1-CLICK DIRECT CALL VIA GOOGLE DIALER!
+    // Directly places the cellular call without requiring telecaller to press call again in Google Dialer!
+    if (activeAppMode === "jobz" || !activeAppMode) {
+      if (Platform.OS === "android" && WegrowTelephony?.directPhoneCall) {
+        try {
+          await WegrowTelephony.directPhoneCall(clean10Digits);
+          return { success: true };
+        } catch (e: any) {
+          console.warn("directPhoneCall error, falling back to Linking:", e);
+        }
+      }
       try {
         const telUrl = `tel:${clean10Digits}`;
         await Linking.openURL(telUrl);

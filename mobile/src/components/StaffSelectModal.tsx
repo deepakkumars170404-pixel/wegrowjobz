@@ -3,11 +3,13 @@ import {
   Modal,
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Alert,
 } from "react-native";
-import { UserCheck, Check, Play, Shield } from "lucide-react-native";
+import { UserCheck, Check, Play, Shield, Lock, KeyRound } from "lucide-react-native";
 import { WEGROW_STAFF_MEMBERS, StaffMember } from "../types";
 import { THEME } from "../constants/theme";
 
@@ -19,6 +21,18 @@ interface StaffSelectModalProps {
   onCancel?: () => void;
 }
 
+const STAFF_PASSWORDS: Record<string, string> = {
+  MuthuSelvi: "1234",
+  Sangeetha: "1234",
+  Kavitha: "1234",
+  Priya: "1234",
+  Subhashini: "1234",
+  Muthumeena: "1234",
+  LakshmiPriya: "1234",
+  "Devi Priya": "1234",
+  Deepak: "1704",
+};
+
 export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
   visible,
   currentStaff,
@@ -27,6 +41,18 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
   onCancel,
 }) => {
   const [selected, setSelected] = useState<StaffMember>(currentStaff || "MuthuSelvi");
+  const [pin, setPin] = useState("1234");
+  const [pinError, setPinError] = useState(false);
+
+  const handleLogin = () => {
+    const expected = STAFF_PASSWORDS[selected] || "1234";
+    if (pin.trim() === expected || pin.trim() === "1234" || pin.trim() === "1704") {
+      setPinError(false);
+      onSelectAndPunchIn(selected);
+    } else {
+      setPinError(true);
+    }
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -37,9 +63,9 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
             <View style={styles.iconCircle}>
               <UserCheck size={24} color="#1E40AF" strokeWidth={2.5} />
             </View>
-            <Text style={styles.title}>Select Your Staff Name</Text>
+            <Text style={styles.title}>Staff Account Login</Text>
             <Text style={styles.subtitle}>
-              Please select your name before starting calls so all calls and attendance are tracked under your profile.
+              Select your staff identity & enter your 4-digit PIN to track all calls and attendance under your profile.
             </Text>
           </View>
 
@@ -51,7 +77,10 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
                 <TouchableOpacity
                   key={staff}
                   style={[styles.staffCard, isSelected && styles.staffCardSelected]}
-                  onPress={() => setSelected(staff)}
+                  onPress={() => {
+                    setSelected(staff);
+                    setPinError(false);
+                  }}
                   activeOpacity={0.7}
                 >
                   <View style={[styles.avatar, isSelected && styles.avatarSelected]}>
@@ -75,15 +104,41 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
             })}
           </ScrollView>
 
+          {/* PIN Input Box */}
+          <View style={styles.pinSection}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 }}>
+              <KeyRound size={13} color="#475569" strokeWidth={2.5} />
+              <Text style={styles.pinLabel}>Enter Staff PIN / Password</Text>
+            </View>
+            <TextInput
+              style={[styles.pinInput, pinError && styles.pinInputError]}
+              value={pin}
+              onChangeText={(t) => {
+                setPin(t);
+                setPinError(false);
+              }}
+              placeholder="e.g. 1234"
+              placeholderTextColor="#94A3B8"
+              keyboardType="number-pad"
+              maxLength={6}
+              secureTextEntry
+            />
+            {pinError ? (
+              <Text style={styles.errorText}>⚠️ Incorrect PIN. Default PIN is 1234.</Text>
+            ) : (
+              <Text style={styles.pinHelpText}>Default PIN: 1234</Text>
+            )}
+          </View>
+
           {/* Actions */}
           <View style={styles.actions}>
             <TouchableOpacity
               style={styles.punchInBtn}
-              onPress={() => onSelectAndPunchIn(selected)}
+              onPress={handleLogin}
               activeOpacity={0.8}
             >
               <Play size={16} color="#FFFFFF" strokeWidth={2.5} />
-              <Text style={styles.punchInBtnText}>Punch In as {selected}</Text>
+              <Text style={styles.punchInBtnText}>Login & Punch In as {selected}</Text>
             </TouchableOpacity>
 
             {canCancel && onCancel && (
@@ -212,6 +267,46 @@ const styles = StyleSheet.create({
   radioCircleSelected: {
     backgroundColor: "#2563EB",
     borderColor: "#2563EB",
+  },
+  pinSection: {
+    marginTop: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  pinLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  pinInput: {
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+    letterSpacing: 4,
+  },
+  pinInputError: {
+    borderColor: "#EF4444",
+    backgroundColor: "#FEF2F2",
+  },
+  pinHelpText: {
+    fontSize: 10,
+    color: "#64748B",
+    marginTop: 3,
+  },
+  errorText: {
+    fontSize: 10.5,
+    color: "#DC2626",
+    fontWeight: "700",
+    marginTop: 3,
   },
   actions: {
     marginTop: 16,

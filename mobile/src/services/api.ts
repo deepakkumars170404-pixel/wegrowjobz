@@ -96,6 +96,12 @@ export const ApiService = {
           const dedupedLeads: Lead[] = [];
           for (const l of leads) {
             const cleanPhone = (l.phone || "").replace(/\D/g, "").slice(-10);
+            const lowerName = (l.studentName || "").toLowerCase().trim();
+            // Filter out dummy test numbers and test names
+            if (cleanPhone === "1234567890" || cleanPhone === "9876543210" || lowerName === "test" || lowerName === "dummy") {
+              continue;
+            }
+
             const key = cleanPhone || l.id;
             if (!seenPhones.has(key)) {
               seenPhones.add(key);

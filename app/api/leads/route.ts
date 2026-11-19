@@ -102,11 +102,16 @@ export async function GET() {
           remarks: f.remarks || "",
         }));
 
-        // Deduplicate leads by 10-digit phone number, keeping the richest record
+        // Deduplicate leads by 10-digit phone number, filtering out dummy test rows
         const seenPhones = new Set<string>();
         const dedupedLeads: any[] = [];
         for (const l of mappedLeads) {
           const clean = String(l.phone || "").replace(/\D/g, "").slice(-10);
+          const lowerName = String(l.studentName || "").toLowerCase().trim();
+          if (clean === "1234567890" || clean === "9876543210" || lowerName === "test" || lowerName === "dummy") {
+            continue;
+          }
+
           const key = clean || l.id;
           if (!seenPhones.has(key)) {
             seenPhones.add(key);
