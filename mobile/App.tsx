@@ -1,4 +1,5 @@
 import "react-native-url-polyfill/auto";
+import { registerRootComponent } from "expo";
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -526,3 +527,5 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
+registerRootComponent(App);
