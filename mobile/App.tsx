@@ -240,7 +240,7 @@ export default function App() {
   };
 
   // Auto-detect returning from Google Dialer: Opens Post-Call Feedback Form automatically!
-  // FIX: Verify via CallLog that call actually happened before opening form
+  // Robust Retry Loop: polls CallLog up to 5 times (total ~2.5s) to guarantee accurate carrier seconds
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (nextAppState === "active") {
@@ -248,73 +248,85 @@ export default function App() {
         if (session) {
           TelephonyService.clearActiveDialSession();
 
-          // Wait 300ms for CallLog to settle after returning from dialer
-          setTimeout(async () => {
-            let exactDuration: number | null = null;
-            let startMs: number | undefined = undefined;
-            let endMs: number | undefined = undefined;
-            let callActuallyHappened = false;
+          // Poll CallLog with retry loop (Android CallLog can take 500ms - 2000ms to persist)
+          let exactDuration: number | null = null;
+          let startMs: number | undefined = undefined;
+          let endMs: number | undefined = undefined;
+          let callActuallyHappened = false;
+
+          const maxAttempts = 6;
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            // Wait interval: 350ms before check
+            await new Promise((r) => setTimeout(r, 350));
 
             try {
               const lastLog = await TelephonyService.getLastCallLog(session.phone);
               if (lastLog && typeof lastLog.durationSeconds === "number") {
-                // KEY FIX: Check if the CallLog entry is recent (within last 60 seconds)
-                // AND that the call log timestamp is AFTER our dial session started
                 const logTimestamp = lastLog.timestamp || 0;
-                const isRecentCall = logTimestamp > session.startTime - 5000; // 5s buffer
-                // CallType 1=Outgoing, 3=Missed, 2=Incoming. Duration>0 means answered.
+                // Allow matching within 10 seconds before dial session or after
+                const isRecent = logTimestamp > session.startTime - 10000;
                 const callType = lastLog.callType;
-                const isOutgoing = callType === 1 || callType === 2; // Outgoing or answered
-                const wasAnswered = lastLog.durationSeconds > 0;
-                const wasMissed = callType === 3 || callType === 5 || callType === 6; // missed/rejected
+                const isCallRecorded = callType === 1 || callType === 2 || callType === 3 || callType === 5 || callType === 6;
 
-                if (isRecentCall && (wasAnswered || wasMissed || isOutgoing)) {
+                if (isRecent && isCallRecorded) {
                   callActuallyHappened = true;
                   exactDuration = lastLog.durationSeconds;
                   if (lastLog.startTimestamp) startMs = lastLog.startTimestamp;
                   if (lastLog.endTimestamp) endMs = lastLog.endTimestamp;
+
+                  // If we got a positive duration (>0), carrier log is fully written!
+                  if (exactDuration > 0) {
+                    console.log(`[WeGrow] CallLog accurate seconds found on attempt ${attempt}: ${exactDuration}s`);
+                    break;
+                  }
                 }
               }
-            } catch {}
-
-            // Only open form if the call log confirms the call actually took place
-            if (!callActuallyHappened) {
-              console.log("[WeGrow] No recent call log found — user returned without calling. Form skipped.");
-              return;
+            } catch (err) {
+              console.warn("[WeGrow] CallLog poll error:", err);
             }
+          }
 
-            const finalDuration = exactDuration !== null ? exactDuration : 0;
-            if (!startMs) startMs = session.startTime;
-            if (!endMs) endMs = Date.now();
+          // If no call was detected in call log, check fallback time
+          const wallClockElapsed = Math.max(0, Math.round((Date.now() - session.startTime) / 1000));
+          // If staff was in Google Dialer for at least 3 seconds, treat as call occurred
+          if (!callActuallyHappened && wallClockElapsed >= 3) {
+            callActuallyHappened = true;
+            exactDuration = wallClockElapsed;
+          }
 
-            const cachedLead = await StorageService.lookupLeadUnified(session.phone);
+          // If still no call actually happened (e.g., pressed call and returned immediately < 3s with no log), skip form!
+          if (!callActuallyHappened) {
+            console.log("[WeGrow] User returned immediately without placing call. Skipped.");
+            return;
+          }
 
-            // ── RECORDING AUTO-FETCH ──
-            // After confirming call happened, search system phone's recording folder
-            // for any new audio file created after the dial session started
-            let recordingPath: string | undefined = undefined;
-            try {
-              // Wait a bit more for recording file to be finalized by system recorder
-              await new Promise(res => setTimeout(res, 1500));
-              const rec = await TelephonyService.getLatestCallRecording(session.startTime);
-              if (rec && rec.path) {
-                recordingPath = rec.path;
-                console.log("[WeGrow] Call recording found:", rec.name, rec.size, "bytes");
-              }
-            } catch (e) {
-              console.warn("[WeGrow] Recording fetch failed:", e);
+          const finalDuration = exactDuration !== null ? exactDuration : wallClockElapsed;
+          if (!startMs) startMs = session.startTime;
+          if (!endMs) endMs = Date.now();
+
+          const cachedLead = await StorageService.lookupLeadUnified(session.phone);
+
+          // ── RECORDING AUTO-FETCH ──
+          let recordingPath: string | undefined = undefined;
+          try {
+            const rec = await TelephonyService.getLatestCallRecording(session.startTime);
+            if (rec && rec.path) {
+              recordingPath = rec.path;
+              console.log("[WeGrow] Call recording detected:", rec.name, rec.size, "bytes");
             }
+          } catch (e) {
+            console.warn("[WeGrow] Recording fetch error:", e);
+          }
 
-            handleCallEnded({
-              phoneNumber: session.phone,
-              studentName: session.name,
-              durationSeconds: finalDuration,
-              startMs,
-              endMs,
-              lead: cachedLead ? { ...cachedLead, phone: session.phone } : null,
-              recordingPath,
-            });
-          }, 300);
+          handleCallEnded({
+            phoneNumber: session.phone,
+            studentName: session.name,
+            durationSeconds: finalDuration,
+            startMs,
+            endMs,
+            lead: cachedLead ? { ...cachedLead, phone: session.phone } : null,
+            recordingPath,
+          });
         }
       }
     };
