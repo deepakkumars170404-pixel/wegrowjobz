@@ -110,6 +110,8 @@ export interface CallRecord {
   experienceYears?: string;
   expectedSalary?: string;
   studentName?: string;
+  phone?: string;
+  durationSeconds?: number;
   remarks: string;
   fromTime?: string;
   endTime?: string;

@@ -18,11 +18,9 @@ export const ApiService = {
   },
 
   async fetchTodayQueue(): Promise<{ success: boolean; leads: Lead[]; error?: string }> {
-    const activeMode = await StorageService.getAppMode();
-    const isJobz = activeMode === "jobz";
-    const leadsTable = isJobz ? "jobz_leads" : "leads";
-    const followUpsTable = isJobz ? "jobz_follow_ups" : "follow_ups";
-    const callsRelation = isJobz ? "calls:jobz_calls(*)" : "calls(*)";
+    const leadsTable = "leads";
+    const followUpsTable = "follow_ups";
+    const callsRelation = "calls(*)";
 
     // 1. First try Supabase Cloud (Works from ANYWHERE on 4G/5G mobile data or Wi-Fi)
     if (isSupabaseReady() && supabaseMobile) {
@@ -445,21 +443,35 @@ export const ApiService = {
     // Works wherever phone is connected: Jio/Airtel 4G/5G, Hotspot, or any Wi-Fi!
     if (isSupabaseReady() && supabaseMobile) {
       try {
-        const activeMode = record.appMode || (await StorageService.getAppMode());
-        const isJobz = activeMode === "jobz";
-        const leadsTable = isJobz ? "jobz_leads" : "leads";
-        const callsTable = isJobz ? "jobz_calls" : "calls";
-        const followUpsTable = isJobz ? "jobz_follow_ups" : "follow_ups";
+        const leadsTable = "leads";
+        const callsTable = "calls";
+        const followUpsTable = "follow_ups";
+
+        // Build composite course/domain & remarks info
+        const targetDomain = record.preferredDomain || record.courseInterested || "General Enquiry";
+        const academicInfo = [
+          record.qualification ? `Qual: ${record.qualification}` : "",
+          record.passedOutYear ? `Year: ${record.passedOutYear}` : "",
+          record.collegeName ? `College: ${record.collegeName}` : "",
+          record.experienceYears ? `Exp: ${record.experienceYears}` : "",
+          record.expectedSalary ? `Salary: ${record.expectedSalary}` : "",
+        ]
+          .filter(Boolean)
+          .join(" • ");
+
+        const combinedRemarks = record.notes
+          ? `${record.notes}${academicInfo ? ` [${academicInfo}]` : ""}`
+          : `Inquiry handled by ${record.callerName}. Spoke for ${record.formattedDuration} (${validStartTime} - ${validEndTime}). Mindset: ${record.disposition}${academicInfo ? ` [${academicInfo}]` : ""}`;
 
         // STEP 1: UPSERT LEAD FIRST (CRITICAL: Satisfies foreign key constraint in calls table!)
         const leadPayload: any = {
           id: safeLeadId,
-          student_name: record.studentName,
+          student_name: record.studentName || "Candidate",
           phone: record.phone,
-          course_interested: record.courseInterested || record.preferredDomain || null,
+          course_interested: targetDomain,
           status: mappedStatus,
           stage: mappedStatus,
-          assigned_caller: record.callerName,
+          assigned_caller: record.callerName || "Staff",
           last_call_date: dateStr,
           last_call_outcome: record.disposition,
           qualification: record.qualification || null,
@@ -467,13 +479,8 @@ export const ApiService = {
           college_name: record.collegeName || null,
           next_follow_up_date: record.nextFollowUpDate || null,
           next_follow_up_time: record.nextFollowUpTime || null,
+          updated_at: new Date().toISOString(),
         };
-
-        if (isJobz) {
-          leadPayload.preferred_domain = record.preferredDomain || record.courseInterested || null;
-          leadPayload.experience_years = record.experienceYears || null;
-          leadPayload.call_recording_uri = record.callRecordingUri || null;
-        }
 
         const { error: lErr } = await supabaseMobile.from(leadsTable).upsert(
           leadPayload,
@@ -489,9 +496,9 @@ export const ApiService = {
         const callPayload: any = {
           id: callId,
           lead_id: safeLeadId,
-          student_name: record.studentName,
+          student_name: record.studentName || "Candidate",
           phone: record.phone,
-          caller_name: record.callerName,
+          caller_name: record.callerName || "Staff",
           call_date: dateStr,
           call_time: validStartTime,
           duration: record.formattedDuration,
@@ -501,18 +508,12 @@ export const ApiService = {
           end_time: validEndTime,
           outcome: record.durationSeconds > 0 ? "Attended Call" : "Not Attended Call",
           mindset: record.disposition,
-          course_interested: record.courseInterested || null,
+          course_interested: targetDomain,
           qualification: record.qualification || null,
           passed_out_year: record.passedOutYear || null,
           college_name: record.collegeName || null,
-          remarks: record.notes || null,
+          remarks: combinedRemarks,
         };
-
-        if (isJobz) {
-          callPayload.preferred_domain = record.preferredDomain || record.courseInterested || null;
-          callPayload.experience_years = record.experienceYears || null;
-          callPayload.call_recording_uri = record.callRecordingUri || null;
-        }
 
         const { error: cErr } = await supabaseMobile.from(callsTable).upsert(
           callPayload,
@@ -531,15 +532,12 @@ export const ApiService = {
             student_name: record.studentName,
             phone: record.phone,
             caller_name: record.callerName,
-            course: record.courseInterested || null,
+            course: targetDomain,
             scheduled_date: record.nextFollowUpDate,
             scheduled_time: record.nextFollowUpTime || "10:30 AM",
             status: "Pending",
-            remarks: record.notes || null,
+            remarks: combinedRemarks,
           };
-          if (isJobz) {
-            fuPayload.preferred_domain = record.preferredDomain || record.courseInterested || null;
-          }
           await supabaseMobile.from(followUpsTable).upsert(
             fuPayload,
             { onConflict: "id" }
@@ -573,8 +571,11 @@ export const ApiService = {
             disposition: record.disposition,
             durationSeconds: record.durationSeconds,
             courseInterested: record.courseInterested,
-            callStartTime: record.callStartTime,
-            callEndTime: record.callEndTime,
+            preferredDomain: record.preferredDomain || record.courseInterested,
+            experienceYears: record.experienceYears,
+            expectedSalary: record.expectedSalary,
+            callStartTime: validStartTime,
+            callEndTime: validEndTime,
             qualification: record.qualification,
             passedOutYear: record.passedOutYear,
             collegeName: record.collegeName,

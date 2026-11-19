@@ -340,7 +340,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .channel("realtime:crm-jobz-live")
         .on(
           "postgres_changes",
-          { event: "*", schema: "public", table: "jobz_leads" },
+          { event: "*", schema: "public", table: "leads" },
           () => {
             fetch("/api/leads")
               .then((res) => res.json())
@@ -353,7 +353,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         )
         .on(
           "postgres_changes",
-          { event: "*", schema: "public", table: "jobz_calls" },
+          { event: "*", schema: "public", table: "calls" },
           () => {
             fetch("/api/leads")
               .then((res) => res.json())

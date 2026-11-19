@@ -149,17 +149,13 @@ export async function POST(request: Request) {
       const existing = updatedLeads[matchedLeadIndex];
       const history = existing.callHistory ? [...existing.callHistory] : [];
 
-      // Check if there is a matching call record logged recently (e.g. auto-logged by the bridge)
+      // Only merge if explicitly a matching temporary bridge placeholder created in the last 15 seconds
       let mergeTargetIndex = -1;
       for (let i = 0; i < history.length; i++) {
         const item = history[i];
-        const itemDurSecs = parseDurationSecs(item.duration);
         const idTimestampMatch = item.id.match(/\d{10,}/);
         const recordAgeMs = idTimestampMatch ? Date.now() - parseInt(idTimestampMatch[0], 10) : 9999999;
-        if (
-          recordAgeMs < 600000 ||
-          (item.callDate === dateStr && (itemDurSecs === durationSeconds || Math.abs(itemDurSecs - durationSeconds) <= 5))
-        ) {
+        if (item.id.startsWith("bridge-") && recordAgeMs < 15000) {
           mergeTargetIndex = i;
           break;
         }

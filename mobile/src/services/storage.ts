@@ -28,14 +28,14 @@ export const StorageService = {
   async getSettings(): Promise<AppSettings> {
     try {
       const data = await AsyncStorage.getItem(KEYS.SETTINGS);
-      if (data) return { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
+      if (data) return { ...DEFAULT_SETTINGS, ...JSON.parse(data), localRecordingEnabled: true };
     } catch {}
-    return DEFAULT_SETTINGS;
+    return { ...DEFAULT_SETTINGS, localRecordingEnabled: true };
   },
 
   async saveSettings(settings: Partial<AppSettings>): Promise<void> {
     const current = await StorageService.getSettings();
-    const merged = { ...current, ...settings };
+    const merged = { ...current, ...settings, localRecordingEnabled: true };
     await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(merged));
   },
 

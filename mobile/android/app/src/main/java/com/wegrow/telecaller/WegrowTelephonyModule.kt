@@ -390,19 +390,45 @@ class WegrowTelephonyModule(private val reactContext: ReactApplicationContext) :
             )
 
             cursor?.use {
-                if (it.moveToFirst()) {
-                    val numIdx = it.getColumnIndex(android.provider.CallLog.Calls.NUMBER)
-                    val durIdx = it.getColumnIndex(android.provider.CallLog.Calls.DURATION)
-                    val dateIdx = it.getColumnIndex(android.provider.CallLog.Calls.DATE)
-                    val typeIdx = it.getColumnIndex(android.provider.CallLog.Calls.TYPE)
+                val numIdx = it.getColumnIndex(android.provider.CallLog.Calls.NUMBER)
+                val durIdx = it.getColumnIndex(android.provider.CallLog.Calls.DURATION)
+                val dateIdx = it.getColumnIndex(android.provider.CallLog.Calls.DATE)
+                val typeIdx = it.getColumnIndex(android.provider.CallLog.Calls.TYPE)
 
-                    val number = if (numIdx != -1) it.getString(numIdx) ?: "" else ""
+                val cleanTarget = (phoneNumber ?: "").filter { c -> c.isDigit() }.takeLast(7)
+
+                // Check up to top 5 recent call logs to find match for dialed number
+                var count = 0
+                while (it.moveToNext() && count < 5) {
+                    count++
+                    val rawNum = if (numIdx != -1) it.getString(numIdx) ?: "" else ""
+                    val cleanNum = rawNum.filter { c -> c.isDigit() }.takeLast(7)
+
+                    if (cleanTarget.isEmpty() || cleanNum == cleanTarget || (cleanTarget.length >= 7 && (cleanNum.endsWith(cleanTarget) || cleanTarget.endsWith(cleanNum)))) {
+                        val durationSecs = if (durIdx != -1) it.getInt(durIdx) else 0
+                        val timestamp = if (dateIdx != -1) it.getLong(dateIdx) else 0L
+                        val callType = if (typeIdx != -1) it.getInt(typeIdx) else 0
+
+                        val map = Arguments.createMap().apply {
+                            putString("number", rawNum)
+                            putInt("durationSeconds", durationSecs)
+                            putDouble("timestamp", timestamp.toDouble())
+                            putInt("callType", callType)
+                        }
+                        promise.resolve(map)
+                        return
+                    }
+                }
+
+                // If not matched by number, fallback to very latest call log
+                if (it.moveToFirst()) {
+                    val rawNum = if (numIdx != -1) it.getString(numIdx) ?: "" else ""
                     val durationSecs = if (durIdx != -1) it.getInt(durIdx) else 0
                     val timestamp = if (dateIdx != -1) it.getLong(dateIdx) else 0L
                     val callType = if (typeIdx != -1) it.getInt(typeIdx) else 0
 
                     val map = Arguments.createMap().apply {
-                        putString("number", number)
+                        putString("number", rawNum)
                         putInt("durationSeconds", durationSecs)
                         putDouble("timestamp", timestamp.toDouble())
                         putInt("callType", callType)

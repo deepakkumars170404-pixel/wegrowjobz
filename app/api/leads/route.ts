@@ -23,15 +23,15 @@ function ensureStorage() {
 
 export async function GET() {
   try {
-    // 1. If Supabase is configured, fetch live from Supabase Cloud (Jobz dedicated tables)
+    // 1. If Supabase is configured, fetch live from Supabase Cloud
     if (isSupabaseConfigured() && supabase) {
       const { data: dbLeads, error: lErr } = await supabase
-        .from("jobz_leads")
-        .select("*, calls:jobz_calls(*)")
+        .from("leads")
+        .select("*, calls(*)")
         .order("created_at", { ascending: false });
 
       const { data: dbFollowUps, error: fErr } = await supabase
-        .from("jobz_follow_ups")
+        .from("follow_ups")
         .select("*")
         .order("scheduled_date", { ascending: true });
 
@@ -67,23 +67,23 @@ export async function GET() {
           callHistory: (l.calls || []).map((c: any) => ({
             id: c.id,
             callDate: c.call_date,
-            callTime: c.call_time,
+            callTime: c.call_time || c.from_time,
             callerName: c.caller_name,
             duration: c.duration,
             durationFormatted: c.duration_formatted,
-            fromTime: c.from_time,
+            durationSeconds: typeof c.duration_seconds === "number" ? c.duration_seconds : undefined,
+            fromTime: c.from_time || c.call_time,
             endTime: c.end_time,
             outcome: c.outcome,
             mindset: c.mindset,
             courseInterested: c.course_interested,
-            preferredDomain: c.preferred_domain || c.course_interested,
-            experienceYears: c.experience_years,
+            preferredDomain: c.course_interested,
             qualification: c.qualification,
             passedOutYear: c.passed_out_year,
             collegeName: c.college_name,
-            studentName: c.student_name,
+            studentName: c.student_name || l.student_name,
+            phone: c.phone || l.phone,
             remarks: c.remarks,
-            callRecordingUri: c.call_recording_uri,
           })),
         }));
 

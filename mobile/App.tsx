@@ -222,28 +222,30 @@ export default function App() {
         if (session) {
           TelephonyService.clearActiveDialSession();
 
-          // 1. Try to get EXACT talk duration directly from Android cellular CallLog!
-          let exactDuration: number | null = null;
-          try {
-            const lastLog = await TelephonyService.getLastCallLog(session.phone);
-            if (lastLog && typeof lastLog.durationSeconds === "number") {
-              exactDuration = lastLog.durationSeconds;
+          // Wait 400ms so Android telephony provider writes the cellular CallLog record
+          setTimeout(async () => {
+            let exactDuration: number | null = null;
+            try {
+              const lastLog = await TelephonyService.getLastCallLog(session.phone);
+              if (lastLog && typeof lastLog.durationSeconds === "number") {
+                exactDuration = lastLog.durationSeconds;
+              }
+            } catch {}
+
+            const elapsed = Math.max(1, Math.round((Date.now() - session.startTime) / 1000));
+            const finalDuration = exactDuration !== null ? exactDuration : elapsed;
+
+            // Trigger if telecaller spent at least 2 seconds in the dialer
+            if (elapsed >= 2) {
+              const cachedLead = await StorageService.lookupLeadUnified(session.phone);
+              handleCallEnded({
+                phoneNumber: session.phone,
+                studentName: session.name,
+                durationSeconds: finalDuration,
+                lead: cachedLead ? { ...cachedLead, phone: session.phone } : null,
+              });
             }
-          } catch {}
-
-          const elapsed = Math.max(1, Math.round((Date.now() - session.startTime) / 1000));
-          const finalDuration = exactDuration !== null ? exactDuration : elapsed;
-
-          // Trigger if telecaller spent at least 2 seconds in the dialer
-          if (elapsed >= 2) {
-            const cachedLead = await StorageService.lookupLeadUnified(session.phone);
-            handleCallEnded({
-              phoneNumber: session.phone,
-              studentName: session.name,
-              durationSeconds: finalDuration,
-              lead: cachedLead,
-            });
-          }
+          }, 400);
         }
       }
     };

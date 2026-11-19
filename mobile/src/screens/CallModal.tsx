@@ -78,6 +78,10 @@ export const CallModal: React.FC<CallModalProps> = ({
   const isJobz = appMode === "jobz";
 
   const [callerName, setCallerName] = useState<StaffMember>("MuthuSelvi");
+  const [candidateName, setCandidateName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [startTimeStr, setStartTimeStr] = useState("");
+  const [endTimeStr, setEndTimeStr] = useState("");
   const [disposition, setDisposition] = useState<CallDisposition>("Interested");
   const [durationSec, setDurationSec] = useState<number>(durationSeconds);
   const [courseInterested, setCourseInterested] = useState("");
@@ -103,6 +107,14 @@ export const CallModal: React.FC<CallModalProps> = ({
   const [collegeQuery, setCollegeQuery] = useState("");
   const [showCollegeSuggestions, setShowCollegeSuggestions] = useState(false);
 
+  const formatTimeSec = (d: Date) =>
+    d.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+
   useEffect(() => {
     (async () => {
       const s = await StorageService.getSettings();
@@ -115,6 +127,14 @@ export const CallModal: React.FC<CallModalProps> = ({
   useEffect(() => {
     if (lead) {
       setDurationSec(durationSeconds);
+      setCandidateName(lead.studentName || "");
+      setPhoneNumber(lead.phone || "");
+
+      const endD = new Date();
+      const startD = new Date(endD.getTime() - durationSeconds * 1000);
+      setEndTimeStr(formatTimeSec(endD));
+      setStartTimeStr(formatTimeSec(startD));
+
       setCourseInterested(lead.courseInterested || "");
       setPreferredDomain(lead.preferredDomain || (isJobz ? "IT & Software Development" : ""));
       setExperienceYears(lead.experienceYears || "Fresher (0 - 6 Months)");
@@ -141,6 +161,14 @@ export const CallModal: React.FC<CallModalProps> = ({
       setShowCollegeSuggestions(false);
     }
   }, [lead, visible, durationSeconds, isJobz]);
+
+  const handleAdjustDuration = (newSecs: number) => {
+    const valid = Math.max(0, newSecs);
+    setDurationSec(valid);
+    const endD = new Date();
+    const startD = new Date(endD.getTime() - valid * 1000);
+    setStartTimeStr(formatTimeSec(startD));
+  };
 
   const activeDispositions = isJobz ? JOBZ_DISPOSITIONS : ADMISSION_DISPOSITIONS;
   const isFirstTimeCaller = !lead?.callCount || lead.callCount === 0;
@@ -173,29 +201,18 @@ export const CallModal: React.FC<CallModalProps> = ({
   const secs = durationSec % 60;
   const formattedDuration = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 
-  const now = new Date();
-  const startTimeStr = new Date(now.getTime() - durationSec * 1000).toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-  const endTimeStr = now.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
   const handleSave = async () => {
     if (!lead) return;
 
     setSubmitting(true);
+    const cleanDigits = (phoneNumber || lead.phone || "").replace(/\D/g, "");
+    const finalPhone = cleanDigits.length > 10 ? cleanDigits.slice(-10) : cleanDigits;
+
     const record: CallRecord = {
-      id: `call-${Date.now()}`,
+      id: `CR-${Date.now()}`,
       leadId: lead.id,
-      studentName: lead.studentName,
-      phone: lead.phone,
+      studentName: candidateName.trim() || lead.studentName || "Candidate",
+      phone: finalPhone,
       callerName,
       disposition,
       outcome: durationSec > 0 ? "Attended Call" : "Not Attended Call",
@@ -285,7 +302,7 @@ export const CallModal: React.FC<CallModalProps> = ({
                 </View>
                 <View style={styles.durationControls}>
                   <TouchableOpacity
-                    onPress={() => setDurationSec(Math.max(0, durationSec - 5))}
+                    onPress={() => handleAdjustDuration(durationSec - 5)}
                     style={styles.durBtn}
                   >
                     <Text style={styles.durBtnText}>-5s</Text>
@@ -294,7 +311,7 @@ export const CallModal: React.FC<CallModalProps> = ({
                     {mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}
                   </Text>
                   <TouchableOpacity
-                    onPress={() => setDurationSec(durationSec + 5)}
+                    onPress={() => handleAdjustDuration(durationSec + 5)}
                     style={styles.durBtn}
                   >
                     <Text style={styles.durBtnText}>+5s</Text>
@@ -307,13 +324,67 @@ export const CallModal: React.FC<CallModalProps> = ({
               </View>
             </View>
 
+            {/* Calling Staff Member Selection Chips (Click your name to save) */}
+            <View style={styles.staffSelectCard}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <User size={15} color="#1E40AF" strokeWidth={2.5} />
+                <Text style={styles.staffSectionTitle}>
+                  Staff Member: <Text style={{ color: "#1D4ED8", fontWeight: "800" }}>{callerName}</Text> (Click to change)
+                </Text>
+              </View>
+              <View style={styles.staffChipsRow}>
+                {WEGROW_STAFF_MEMBERS.map((staff) => {
+                  const isSelected = callerName === staff;
+                  return (
+                    <TouchableOpacity
+                      key={staff}
+                      onPress={() => setCallerName(staff)}
+                      style={[styles.staffChip, isSelected && styles.staffChipActive]}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.staffChipText, isSelected && styles.staffChipTextActive]}>
+                        {isSelected ? `✓ ${staff}` : staff}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Editable Candidate Name & Phone Number Card */}
+            <View style={styles.candidateCard}>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>Candidate Name</Text>
+                  <TextInput
+                    style={styles.inputSm}
+                    value={candidateName}
+                    onChangeText={setCandidateName}
+                    placeholder="Candidate Name"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>Phone Number</Text>
+                  <TextInput
+                    style={styles.inputSm}
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
+                    keyboardType="phone-pad"
+                    placeholder="10-digit Phone"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+              </View>
+            </View>
+
             {/* Quick 1-Click WhatsApp Follow-up button */}
             <TouchableOpacity
               style={styles.waBtn}
               onPress={() =>
                 TelephonyService.openWhatsAppChat(
-                  lead.phone,
-                  lead.studentName,
+                  phoneNumber || lead.phone,
+                  candidateName || lead.studentName,
                   isJobz ? preferredDomain : courseInterested
                 )
               }
@@ -690,6 +761,69 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     color: "#166534",
+  },
+  staffSelectCard: {
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
+  },
+  staffSectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#166534",
+  },
+  staffChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 5,
+  },
+  staffChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+  staffChipActive: {
+    backgroundColor: "#16A34A",
+    borderColor: "#15803D",
+  },
+  staffChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  staffChipTextActive: {
+    color: "#FFFFFF",
+  },
+  candidateCard: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#475569",
+    marginBottom: 3,
+  },
+  inputSm: {
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    fontSize: 12,
+    backgroundColor: "#FFFFFF",
+    color: "#0F172A",
+    fontWeight: "600",
   },
   waBtn: {
     flexDirection: "row",

@@ -388,21 +388,20 @@ export const SettingsScreen: React.FC = () => {
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <View style={{ flex: 1, marginRight: 8 }}>
             <Text style={{ fontSize: 13, fontWeight: "700", color: "#1E293B" }}>Local Call Recording</Text>
-            <Text style={{ fontSize: 11, color: "#64748B" }}>Store audio recordings on phone internal storage</Text>
+            <Text style={{ fontSize: 11, color: "#16A34A", fontWeight: "600" }}>✓ Always Enabled • Audio saved to internal storage</Text>
           </View>
-          <TouchableOpacity
+          <View
             style={{
-              backgroundColor: localRecording ? "#16A34A" : "#CBD5E1",
+              backgroundColor: "#16A34A",
               paddingHorizontal: 12,
               paddingVertical: 6,
               borderRadius: 20,
             }}
-            onPress={() => setLocalRecording(!localRecording)}
           >
-            <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 11 }}>
-              {localRecording ? "ENABLED" : "DISABLED"}
+            <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 11 }}>
+              ALWAYS ON
             </Text>
-          </TouchableOpacity>
+          </View>
         </View>
       </View>
 

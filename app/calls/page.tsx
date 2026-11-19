@@ -101,8 +101,8 @@ export default function CallManagementPage() {
           list.push({
             ...c,
             studentName: c.studentName || l.studentName,
-            studentPhone: l.phone,
-            studentCourse: l.courseInterested,
+            studentPhone: c.phone || l.phone,
+            studentCourse: c.courseInterested || l.courseInterested,
             qualification: c.qualification || l.qualification || "",
             passedOutYear: c.passedOutYear || l.passedOutYear || "",
             collegeName: c.collegeName || l.collegeName || "",
@@ -431,9 +431,14 @@ export default function CallManagementPage() {
                         {displayStatus}
                       </span>
 
-                      {/* Spoken Duration */}
-                      <span className="px-2.5 py-1 rounded-lg font-mono font-bold text-xs bg-emerald-600 text-white shadow-xs">
-                        ⏱️ {call.duration || "00:00"}
+                      {/* Spoken Duration with Exact Seconds */}
+                      <span className="px-2.5 py-1 rounded-lg font-mono font-bold text-xs bg-emerald-600 text-white shadow-xs flex items-center gap-1">
+                        <span>⏱️ {call.duration || "00:00"}</span>
+                        {typeof call.durationSeconds === "number" && call.durationSeconds > 0 && (
+                          <span className="text-[10px] bg-emerald-800/90 px-1 py-0.5 rounded font-mono">
+                            {call.durationSeconds}s
+                          </span>
+                        )}
                       </span>
 
                       {/* Timeline */}
