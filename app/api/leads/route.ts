@@ -23,15 +23,15 @@ function ensureStorage() {
 
 export async function GET() {
   try {
-    // 1. If Supabase is configured, fetch live from Supabase Cloud
+    // 1. If Supabase is configured, fetch live from Supabase Cloud (Jobz dedicated tables)
     if (isSupabaseConfigured() && supabase) {
       const { data: dbLeads, error: lErr } = await supabase
-        .from("leads")
-        .select("*, calls(*)")
+        .from("jobz_leads")
+        .select("*, jobz_calls(*)")
         .order("created_at", { ascending: false });
 
       const { data: dbFollowUps, error: fErr } = await supabase
-        .from("follow_ups")
+        .from("jobz_follow_ups")
         .select("*")
         .order("scheduled_date", { ascending: true });
 
@@ -57,14 +57,14 @@ export async function GET() {
           enquiryDate: l.enquiry_date || "",
           nextFollowUpDate: l.next_follow_up_date || "",
           nextFollowUpTime: l.next_follow_up_time || "",
-          callCount: l.call_count || (l.calls ? l.calls.length : 0),
+          callCount: l.call_count || (l.jobz_calls ? l.jobz_calls.length : 0),
           qualification: l.qualification || "",
           passedOutYear: l.passed_out_year || "",
           collegeName: l.college_name || "",
           lastCallDate: l.last_call_date || "",
           lastCallOutcome: l.last_call_outcome || "",
           notes: [],
-          callHistory: (l.calls || []).map((c: any) => ({
+          callHistory: (l.jobz_calls || l.calls || []).map((c: any) => ({
             id: c.id,
             callDate: c.call_date,
             callTime: c.call_time || c.from_time,
@@ -237,9 +237,9 @@ export async function POST(request: Request) {
         last_call_date: l.lastCallDate || null,
         last_call_outcome: l.lastCallOutcome || null,
       }));
-      await supabase.from("leads").upsert(leadsToUpsert, { onConflict: "id" });
+      await supabase.from("jobz_leads").upsert(leadsToUpsert, { onConflict: "id" });
 
-      // Upsert follow_ups to Supabase follow_ups table
+      // Upsert follow_ups to Supabase jobz_follow_ups table
       if (Array.isArray(followUps) && followUps.length > 0) {
         const fuToUpsert = followUps.map((f: any) => ({
           id: f.id,
@@ -253,10 +253,10 @@ export async function POST(request: Request) {
           status: f.status === "Completed" ? "Completed" : "Pending",
           remarks: f.remarks || "",
         }));
-        await supabase.from("follow_ups").upsert(fuToUpsert, { onConflict: "id" });
+        await supabase.from("jobz_follow_ups").upsert(fuToUpsert, { onConflict: "id" });
       }
 
-      // Upsert each call in callHistory to Supabase calls table
+      // Upsert each call in callHistory to Supabase jobz_calls table
       const callsToUpsert: any[] = [];
       leads.forEach((l: any) => {
         if (Array.isArray(l.callHistory)) {
@@ -286,20 +286,17 @@ export async function POST(request: Request) {
               outcome: c.outcome || (secs > 0 ? "Attended Call" : "Not Attended Call"),
               mindset: c.mindset || null,
               course_interested: c.courseInterested || l.courseInterested || null,
-              preferred_domain: c.preferredDomain || l.preferredDomain || null,
-              experience_years: c.experienceYears || l.experienceYears || null,
               qualification: c.qualification || l.qualification || null,
               passed_out_year: c.passedOutYear || l.passedOutYear || null,
               college_name: c.collegeName || l.collegeName || null,
               remarks: c.remarks || null,
-              call_recording_uri: c.callRecordingUri || null,
             });
           });
         }
       });
 
       if (callsToUpsert.length > 0) {
-        await supabase.from("calls").upsert(callsToUpsert, { onConflict: "id" });
+        await supabase.from("jobz_calls").upsert(callsToUpsert, { onConflict: "id" });
       }
     }
 

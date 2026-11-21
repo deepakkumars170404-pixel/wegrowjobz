@@ -20,9 +20,9 @@ export const ApiService = {
   async fetchTodayQueue(): Promise<{ success: boolean; leads: Lead[]; error?: string }> {
     const activeMode = await StorageService.getAppMode();
     const isJobz = activeMode === "jobz";
-    const leadsTable = "leads";
-    const followUpsTable = "follow_ups";
-    const callsRelation = "calls(*)";
+    const leadsTable = isJobz ? "jobz_leads" : "leads";
+    const followUpsTable = isJobz ? "jobz_follow_ups" : "follow_ups";
+    const callsRelation = isJobz ? "jobz_calls(*)" : "calls(*)";
 
     // 1. First try Supabase Cloud (Works from ANYWHERE on 4G/5G mobile data or Wi-Fi)
     if (isSupabaseReady() && supabaseMobile) {
@@ -451,9 +451,11 @@ export const ApiService = {
     // Works wherever phone is connected: Jio/Airtel 4G/5G, Hotspot, or any Wi-Fi!
     if (isSupabaseReady() && supabaseMobile) {
       try {
-        const leadsTable = "leads";
-        const callsTable = "calls";
-        const followUpsTable = "follow_ups";
+        const activeMode = await StorageService.getAppMode();
+        const isJobz = activeMode === "jobz";
+        const leadsTable = isJobz ? "jobz_leads" : "leads";
+        const callsTable = isJobz ? "jobz_calls" : "calls";
+        const followUpsTable = isJobz ? "jobz_follow_ups" : "follow_ups";
 
         // Build composite course/domain & remarks info
         const targetDomain = record.preferredDomain || record.courseInterested || "General Enquiry";
@@ -640,6 +642,9 @@ export const ApiService = {
   async syncAttendanceRecord(att: any): Promise<boolean> {
     if (!isSupabaseReady() || !supabaseMobile) return false;
     try {
+      const activeMode = await StorageService.getAppMode();
+      const attTable = activeMode === "jobz" ? "jobz_attendance" : "staff_attendance";
+
       const payload: any = {
         id: att.id || `att-${att.date}-${att.callerName}`,
         caller_name: att.callerName,
@@ -648,11 +653,11 @@ export const ApiService = {
         logout_time: att.logoutTime || null,
         total_calls_today: att.totalCallsToday || 0,
         spoken_seconds: att.spokenSeconds || 0,
-        working_hours: att.workingHoursFormatted || null,
+        working_hours_formatted: att.workingHoursFormatted || null,
         status: att.status || "Punched In",
         updated_at: new Date().toISOString(),
       };
-      await supabaseMobile.from("staff_attendance").upsert(payload, { onConflict: "id" });
+      await supabaseMobile.from(attTable).upsert(payload, { onConflict: "id" });
       return true;
     } catch {
       return false;
