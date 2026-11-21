@@ -681,6 +681,40 @@ class WegrowTelephonyModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
+    @ReactMethod
+    fun shareReportFile(csvContent: String, fileName: String, title: String, promise: Promise) {
+        try {
+            val cacheDir = reactContext.cacheDir
+            val reportsDir = File(cacheDir, "reports")
+            if (!reportsDir.exists()) reportsDir.mkdirs()
+
+            val file = File(reportsDir, fileName)
+            file.writeText(csvContent, Charsets.UTF_8)
+
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                reactContext,
+                "${reactContext.packageName}.provider",
+                file
+            )
+
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/csv"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, title)
+                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+
+            val chooser = Intent.createChooser(shareIntent, title).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            reactContext.startActivity(chooser)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "shareReportFile error: ${e.message}", e)
+            promise.reject("SHARE_ERROR", e.message)
+        }
+    }
+
     private fun findViaMediaStore(afterMs: Long): com.facebook.react.bridge.WritableMap? {
         return try {
             val uri = android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI

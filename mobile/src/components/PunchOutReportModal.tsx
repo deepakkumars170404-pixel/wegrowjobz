@@ -20,6 +20,7 @@ import {
 } from "lucide-react-native";
 import { AttendanceRecord, CallRecord, StaffMember } from "../types";
 import { ExportService } from "../services/exportService";
+import { TelephonyService } from "../services/telephony";
 
 interface PunchOutReportModalProps {
   visible: boolean;
@@ -57,9 +58,17 @@ export const PunchOutReportModal: React.FC<PunchOutReportModalProps> = ({
       staffName
     );
 
+    const fileName = `WeGrow_Daily_Call_Report_${staffName}_${todayStr}.csv`;
+    const shareTitle = `WeGrow Daily Calls Report - ${staffName} (${todayStr})`;
+
+    // 1. Try native file attachment share (opens in Excel / Sheets directly)
+    const fileShared = await TelephonyService.shareReportFile(csvData, fileName, shareTitle);
+    if (fileShared) return;
+
+    // 2. Fallback to standard share
     try {
       await Share.share({
-        title: `WeGrow Daily Calls Report - ${staffName} - ${todayStr}`,
+        title: shareTitle,
         message: csvData,
       });
     } catch (err) {

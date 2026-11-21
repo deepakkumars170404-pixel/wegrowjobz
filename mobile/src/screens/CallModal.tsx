@@ -233,6 +233,7 @@ export const CallModal: React.FC<CallModalProps> = ({
       studentName: candidateName.trim() || lead.studentName || "Candidate",
       phone: finalPhone,
       callerName,
+      callDate: new Date().toISOString().split("T")[0],
       disposition,
       outcome: durationSec > 0 ? "Attended Call" : "Not Attended Call",
       mindset: disposition,

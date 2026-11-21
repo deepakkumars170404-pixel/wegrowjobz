@@ -360,4 +360,19 @@ export const TelephonyService = {
     }
     return null;
   },
+
+  /**
+   * Shares a CSV report as a real file attachment (.csv) via Android FileProvider
+   */
+  async shareReportFile(csvContent: string, fileName: string, title: string): Promise<boolean> {
+    if (Platform.OS === "android" && WegrowTelephony?.shareReportFile) {
+      try {
+        await WegrowTelephony.shareReportFile(csvContent, fileName, title);
+        return true;
+      } catch (err) {
+        console.warn("WegrowTelephony shareReportFile error:", err);
+      }
+    }
+    return false;
+  },
 };

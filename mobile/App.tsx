@@ -179,7 +179,15 @@ export default function App() {
           onPress: async () => {
             const history = await StorageService.getCallHistory();
             const todayStr = new Date().toISOString().split("T")[0];
-            const todayCalls = history.filter((h) => (h.callDate || "").startsWith(todayStr));
+            const todayCalls = history.filter((h) => {
+              if (h.callDate && h.callDate.startsWith(todayStr)) return true;
+              if (h.callStartTime && h.callStartTime.startsWith(todayStr)) return true;
+              if (h.timestamp) {
+                const tsDate = new Date(h.timestamp).toISOString().split("T")[0];
+                if (tsDate === todayStr) return true;
+              }
+              return false;
+            });
 
             const updatedAtt = await StorageService.punchOutAttendance(
               activeStaff,
