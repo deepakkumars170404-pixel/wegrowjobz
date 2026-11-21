@@ -453,17 +453,8 @@ export default function JobzPipelinePage() {
                             </span>
                           </div>
 
-                          {/* Action Buttons: Call & Advance */}
-                          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                            <button
-                              onClick={() => initiateCall(cand)}
-                              title="Direct Phone Call"
-                              className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors flex items-center gap-1 text-[11px] font-medium"
-                            >
-                              <PhoneCall className="w-3 h-3" />
-                              <span>Call</span>
-                            </button>
-
+                          {/* Action Button: Advance Stage */}
+                          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-end">
                             {col.stage !== "Placed" && col.stage !== "Lost" ? (
                               <button
                                 onClick={() => handleAdvanceStage(cand.id, col.stage)}

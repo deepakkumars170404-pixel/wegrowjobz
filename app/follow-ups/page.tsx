@@ -416,14 +416,6 @@ export default function FollowUpsPage() {
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
-
-                          <Link
-                            href="/calls"
-                            title="Call Now in Telecaller Workspace"
-                            className="p-1.5 rounded-lg bg-[#142B52] text-white hover:bg-[#1E3B6E] transition-colors"
-                          >
-                            <Phone className="w-3.5 h-3.5 text-[#D5A52B]" />
-                          </Link>
                         </div>
                       </td>
                     </tr>
