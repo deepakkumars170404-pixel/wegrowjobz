@@ -119,6 +119,14 @@ export async function GET() {
           };
         });
 
+        // Always sort follow-ups by date and time in ascending order
+        mappedFollowUps.sort((a: any, b: any) => {
+          const aDate = a.followUpDate || "9999-12-31";
+          const bDate = b.followUpDate || "9999-12-31";
+          if (aDate !== bDate) return aDate.localeCompare(bDate);
+          return (a.followUpTime || "").localeCompare(b.followUpTime || "");
+        });
+
         // Deduplicate leads by 10-digit phone number, filtering out dummy test rows
         const seenPhones = new Set<string>();
         const dedupedLeads: any[] = [];
@@ -159,9 +167,17 @@ export async function GET() {
         dedupedLocal.push(l);
       }
     }
+    const localFollowUps = Array.isArray(data.followUps) ? data.followUps : [];
+    localFollowUps.sort((a: any, b: any) => {
+      const aDate = a.followUpDate || "9999-12-31";
+      const bDate = b.followUpDate || "9999-12-31";
+      if (aDate !== bDate) return aDate.localeCompare(bDate);
+      return (a.followUpTime || "").localeCompare(b.followUpTime || "");
+    });
     return NextResponse.json({
       ...data,
       leads: dedupedLocal,
+      followUps: localFollowUps,
     });
   } catch (error: any) {
     return NextResponse.json(

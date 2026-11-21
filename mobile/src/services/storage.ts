@@ -265,6 +265,20 @@ export const StorageService = {
     return record;
   },
 
+  async updateAttendanceSpokenSeconds(callerName: string, additionalSeconds: number): Promise<void> {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const existing = await StorageService.getTodayAttendance(callerName);
+      if (existing) {
+        existing.spokenSeconds = (existing.spokenSeconds || 0) + additionalSeconds;
+        existing.totalCallsToday = (existing.totalCallsToday || 0) + 1;
+        await AsyncStorage.setItem(`${KEYS.ATTENDANCE}_${today}_${callerName}`, JSON.stringify(existing));
+      }
+    } catch (e) {
+      console.warn("[Storage] updateAttendanceSpokenSeconds error:", e);
+    }
+  },
+
   async punchOutAttendance(
     callerName: string,
     totalCalls: number,

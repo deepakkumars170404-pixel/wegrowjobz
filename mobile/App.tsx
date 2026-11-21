@@ -237,6 +237,15 @@ export default function App() {
     setModalRecordingPath(callData.recordingPath);
     setIsModalVisible(true);
     setCompletedCallsCount((c) => c + 1);
+
+    // Accurately accumulate spoken seconds from carrier/Google dialer call duration
+    if (callData.durationSeconds > 0) {
+      setSpokenSeconds((prev) => {
+        const updated = prev + callData.durationSeconds;
+        StorageService.updateAttendanceSpokenSeconds(activeStaff, callData.durationSeconds).catch(() => {});
+        return updated;
+      });
+    }
   };
 
   // Auto-detect returning from Google Dialer: Opens Post-Call Feedback Form automatically!

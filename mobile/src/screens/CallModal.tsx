@@ -16,7 +16,7 @@ import { THEME } from "../constants/theme";
 import { CallDisposition, CallRecord, Lead, WEGROW_STAFF_MEMBERS, StaffMember, AppMode } from "../types";
 import { ApiService } from "../services/api";
 import { StorageService } from "../services/storage";
-import { ALL_INDIA_COLLEGES_LIST } from "../data/academicData";
+import { ALL_INDIA_COLLEGES_LIST, DEGREES_LIST } from "../data/academicData";
 import { WEGROW_INSTITUTE_COURSES } from "../data/instituteCourses";
 import { ALL_JOB_ROLES, EXPERIENCE_LEVELS, SALARY_RANGES, NOTICE_PERIODS } from "../data/jobData";
 import { TelephonyService } from "../services/telephony";
@@ -117,6 +117,9 @@ export const CallModal: React.FC<CallModalProps> = ({
   const [collegeQuery, setCollegeQuery] = useState("");
   const [showCollegeSuggestions, setShowCollegeSuggestions] = useState(false);
 
+  const [degreeQuery, setDegreeQuery] = useState("");
+  const [showDegreeSuggestions, setShowDegreeSuggestions] = useState(false);
+
   const formatTimeSec = (d: Date) =>
     d.toLocaleTimeString("en-US", {
       hour: "2-digit",
@@ -171,6 +174,8 @@ export const CallModal: React.FC<CallModalProps> = ({
       setShowCourseSuggestions(false);
       setCollegeQuery("");
       setShowCollegeSuggestions(false);
+      setDegreeQuery("");
+      setShowDegreeSuggestions(false);
 
       // Sync recording path when modal opens
       setRecordingFound(recordingPath);
@@ -202,6 +207,13 @@ export const CallModal: React.FC<CallModalProps> = ({
     const q = collegeQuery.toLowerCase();
     return ALL_INDIA_COLLEGES_LIST.filter((c) => c.toLowerCase().includes(q)).slice(0, 8);
   }, [collegeQuery]);
+
+  // Filtered Degrees & Courses (World & Indian Education)
+  const filteredDegrees = useMemo(() => {
+    if (!degreeQuery.trim()) return [];
+    const q = degreeQuery.toLowerCase();
+    return DEGREES_LIST.filter((d) => d.toLowerCase().includes(q)).slice(0, 8);
+  }, [degreeQuery]);
 
   // Timing Calculations
   const mins = Math.floor(durationSec / 60);
@@ -585,12 +597,42 @@ export const CallModal: React.FC<CallModalProps> = ({
                 <Text style={styles.sectionLabel}>College & Qualification</Text>
               </View>
 
+              {/* Degree / Qualification with Comprehensive World & Indian Autocomplete */}
               <TextInput
                 style={styles.input}
-                placeholder="Degree (e.g. B.E CSE, B.Com, BCA, MCA)"
+                placeholder="Degree (e.g. B.E CSE, B.Com, BCA, MCA, B.S, MBA)"
                 value={qualification}
-                onChangeText={setQualification}
+                onChangeText={(text) => {
+                  setQualification(text);
+                  setDegreeQuery(text);
+                  setShowDegreeSuggestions(true);
+                }}
+                onFocus={() => {
+                  if (qualification.trim()) {
+                    setDegreeQuery(qualification);
+                    setShowDegreeSuggestions(true);
+                  }
+                }}
               />
+
+              {showDegreeSuggestions && filteredDegrees.length > 0 && (
+                <View style={styles.suggestionsBox}>
+                  <Text style={styles.suggestionsHeader}>Degrees & Courses ({filteredDegrees.length}):</Text>
+                  {filteredDegrees.map((deg) => (
+                    <TouchableOpacity
+                      key={deg}
+                      style={styles.suggestionItem}
+                      onPress={() => {
+                        setQualification(deg);
+                        setShowDegreeSuggestions(false);
+                      }}
+                    >
+                      <Sparkles size={13} color="#2563EB" />
+                      <Text style={styles.suggestionText}>{deg}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
 
               <View style={styles.row}>
                 <TextInput
