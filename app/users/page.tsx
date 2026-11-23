@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   ShieldCheck,
   UserPlus,
@@ -14,9 +14,11 @@ import {
   Sparkles,
   Users,
   Lock,
+  Camera,
 } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
 import { AppUser } from "@/types";
+import { StaffAvatar } from "@/components/shared/StaffAvatar";
 
 export default function UsersRolesPage() {
   const {
@@ -26,7 +28,28 @@ export default function UsersRolesPage() {
     toggleUserStatus,
     activeUserRole,
     setActiveUserRole,
+    updateStaffAvatar,
   } = useCRM();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadTargetUser, setUploadTargetUser] = useState<string | null>(null);
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadTargetUser) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      updateStaffAvatar(uploadTargetUser, base64);
+      setUploadTargetUser(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const triggerUpload = (userName: string) => {
+    setUploadTargetUser(userName);
+    fileInputRef.current?.click();
+  };
 
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
@@ -220,11 +243,21 @@ export default function UsersRolesPage() {
                 <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={u.avatar}
-                        alt={u.name}
-                        className="w-8 h-8 rounded-full object-cover ring-2 ring-slate-100"
-                      />
+                      <div className="relative group/useravatar">
+                        <StaffAvatar
+                          name={u.name}
+                          avatarUrl={u.avatar}
+                          size={36}
+                          ringColor="ring-2 ring-slate-100"
+                        />
+                        <button
+                          onClick={() => triggerUpload(u.name)}
+                          title="Change Photo"
+                          className="absolute -bottom-1 -right-1 p-0.5 rounded-full bg-white shadow-xs border border-slate-200 text-slate-500 hover:text-blue-600 transition-all opacity-80 group-hover/useravatar:opacity-100"
+                        >
+                          <Camera className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
                       <div>
                         <p className="font-bold text-slate-900">{u.name}</p>
                         <span className="text-[10px] text-slate-400">
@@ -444,6 +477,14 @@ export default function UsersRolesPage() {
           </div>
         </div>
       )}
+      {/* Hidden File Input for Avatar Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handlePhotoUpload}
+        accept="image/*"
+        className="hidden"
+      />
     </div>
   );
 }

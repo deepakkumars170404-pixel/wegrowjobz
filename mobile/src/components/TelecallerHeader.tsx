@@ -1,7 +1,8 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { PhoneCall, UserCheck, LogOut, Play, User } from "lucide-react-native";
 import { THEME } from "../constants/theme";
+import { StorageService } from "../services/storage";
 
 interface TelecallerHeaderProps {
   completedCalls: number;
@@ -20,6 +21,20 @@ export const TelecallerHeader: React.FC<TelecallerHeaderProps> = ({
   onPunchToggle,
   onChangeStaff,
 }) => {
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    StorageService.getStaffAvatars().then((map) => {
+      if (staffName && map[staffName]) {
+        setAvatarUrl(map[staffName]);
+      } else {
+        setAvatarUrl(null);
+      }
+    });
+  }, [staffName]);
+
+  const initial = (staffName || "S").trim().charAt(0).toUpperCase();
+
   const formatSec = (total: number) => {
     const mins = Math.floor(total / 60);
     const secs = total % 60;
@@ -40,7 +55,11 @@ export const TelecallerHeader: React.FC<TelecallerHeaderProps> = ({
         activeOpacity={0.7}
       >
         <View style={styles.avatarCircle}>
-          <User size={14} color="#1E40AF" />
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
+          ) : (
+            <Text style={styles.avatarLetter}>{initial}</Text>
+          )}
         </View>
         <View>
           <Text style={styles.staffLabel}>Telecaller</Text>
@@ -122,11 +141,20 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: "#EFF6FF",
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
+    backgroundColor: "#2563EB",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  avatarImg: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+  },
+  avatarLetter: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
   staffLabel: {
     fontSize: 10,

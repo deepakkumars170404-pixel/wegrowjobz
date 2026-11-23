@@ -122,6 +122,7 @@ interface CRMContextType {
   addUser: (user: Omit<AppUser, "id" | "assignedLeads" | "joinedDate" | "lastActive">) => void;
   updateUserRole: (id: string, newRole: AppUser["role"]) => void;
   toggleUserStatus: (id: string) => void;
+  updateStaffAvatar: (staffName: string, avatarUrl: string) => void;
 }
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -1592,6 +1593,40 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const updateStaffAvatar = (staffName: string, avatarUrl: string) => {
+    // 1. Update in telecallers list
+    setTelecallers((prev) =>
+      prev.map((t) =>
+        t.name.toLowerCase() === staffName.toLowerCase() || t.id.toLowerCase().includes(staffName.toLowerCase())
+          ? { ...t, avatar: avatarUrl }
+          : t
+      )
+    );
+
+    // 2. Update in users list
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.name.toLowerCase().includes(staffName.toLowerCase())
+          ? { ...u, avatar: avatarUrl }
+          : u
+      )
+    );
+
+    // 3. Persist in localStorage so it stays across refreshes
+    try {
+      const stored = localStorage.getItem("wegrow_staff_avatars");
+      const map = stored ? JSON.parse(stored) : {};
+      map[staffName] = avatarUrl;
+      localStorage.setItem("wegrow_staff_avatars", JSON.stringify(map));
+    } catch {}
+
+    showToast({
+      type: "success",
+      title: "Photo Updated",
+      message: `Profile picture for ${staffName} updated successfully.`,
+    });
+  };
+
   return (
     <CRMContext.Provider
       value={{
@@ -1642,6 +1677,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addUser,
         updateUserRole,
         toggleUserStatus,
+        updateStaffAvatar,
       }}
     >
       {children}

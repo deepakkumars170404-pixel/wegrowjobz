@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   View,
@@ -8,10 +8,12 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  Image,
 } from "react-native";
-import { UserCheck, Check, Play, Shield, Lock, KeyRound } from "lucide-react-native";
+import { UserCheck, Check, Play, Shield, Lock, KeyRound, Camera } from "lucide-react-native";
 import { WEGROW_STAFF_MEMBERS, StaffMember } from "../types";
 import { THEME } from "../constants/theme";
+import { StorageService } from "../services/storage";
 
 interface StaffSelectModalProps {
   visible: boolean;
@@ -43,6 +45,22 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
   const [selected, setSelected] = useState<StaffMember>(currentStaff || "MuthuSelvi");
   const [pin, setPin] = useState("1234");
   const [pinError, setPinError] = useState(false);
+  const [avatarsMap, setAvatarsMap] = useState<Record<string, string>>({});
+  const [photoUrlInput, setPhotoUrlInput] = useState("");
+  const [isPhotoEditOpen, setIsPhotoEditOpen] = useState(false);
+
+  useEffect(() => {
+    StorageService.getStaffAvatars().then(setAvatarsMap);
+  }, [visible]);
+
+  const handleSavePhoto = async () => {
+    if (!photoUrlInput.trim()) return;
+    await StorageService.saveStaffAvatar(selected, photoUrlInput.trim());
+    setAvatarsMap((prev) => ({ ...prev, [selected]: photoUrlInput.trim() }));
+    setIsPhotoEditOpen(false);
+    setPhotoUrlInput("");
+    Alert.alert("Success", `Profile picture updated for ${selected}!`);
+  };
 
   const handleLogin = () => {
     const expected = STAFF_PASSWORDS[selected] || "1234";
@@ -73,6 +91,8 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
           <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
             {WEGROW_STAFF_MEMBERS.map((staff) => {
               const isSelected = selected === staff;
+              const customPhoto = avatarsMap[staff];
+
               return (
                 <TouchableOpacity
                   key={staff}
@@ -84,9 +104,13 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
                   activeOpacity={0.7}
                 >
                   <View style={[styles.avatar, isSelected && styles.avatarSelected]}>
-                    <Text style={[styles.avatarText, isSelected && styles.avatarTextSelected]}>
-                      {staff.charAt(0)}
-                    </Text>
+                    {customPhoto ? (
+                      <Image source={{ uri: customPhoto }} style={styles.avatarImg} />
+                    ) : (
+                      <Text style={[styles.avatarText, isSelected && styles.avatarTextSelected]}>
+                        {staff.charAt(0)}
+                      </Text>
+                    )}
                   </View>
 
                   <View style={styles.staffInfo}>
@@ -96,6 +120,20 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
                     <Text style={styles.staffRole}>Telecalling Executive</Text>
                   </View>
 
+                  {/* Change Photo Button */}
+                  {isSelected && (
+                    <TouchableOpacity
+                      style={styles.changePhotoBtn}
+                      onPress={() => {
+                        setPhotoUrlInput(avatarsMap[staff] || "");
+                        setIsPhotoEditOpen(true);
+                      }}
+                    >
+                      <Camera size={13} color="#2563EB" />
+                      <Text style={styles.changePhotoText}>Photo</Text>
+                    </TouchableOpacity>
+                  )}
+
                   <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
                     {isSelected && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
                   </View>
@@ -103,6 +141,34 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
               );
             })}
           </ScrollView>
+
+          {/* Quick Photo Change Box */}
+          {isPhotoEditOpen && (
+            <View style={styles.photoEditBox}>
+              <Text style={styles.photoEditTitle}>Set Profile Picture for {selected}</Text>
+              <TextInput
+                style={styles.photoInput}
+                placeholder="Paste Image URL / Link..."
+                placeholderTextColor="#94A3B8"
+                value={photoUrlInput}
+                onChangeText={setPhotoUrlInput}
+              />
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+                <TouchableOpacity
+                  style={[styles.smallBtn, { backgroundColor: "#2563EB" }]}
+                  onPress={handleSavePhoto}
+                >
+                  <Text style={{ color: "#FFF", fontSize: 11, fontWeight: "700" }}>Save Photo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.smallBtn, { backgroundColor: "#E2E8F0" }]}
+                  onPress={() => setIsPhotoEditOpen(false)}
+                >
+                  <Text style={{ color: "#475569", fontSize: 11, fontWeight: "600" }}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* PIN Input Box */}
           <View style={styles.pinSection}>
@@ -239,6 +305,57 @@ const styles = StyleSheet.create({
   },
   avatarTextSelected: {
     color: "#FFFFFF",
+  },
+  avatarImg: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+  },
+  changePhotoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  changePhotoText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+  photoEditBox: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    padding: 10,
+    marginVertical: 6,
+  },
+  photoEditTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 6,
+  },
+  photoInput: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 12,
+    color: "#0F172A",
+  },
+  smallBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 6,
   },
   staffInfo: {
     flex: 1,

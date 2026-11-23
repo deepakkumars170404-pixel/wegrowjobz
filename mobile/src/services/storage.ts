@@ -10,6 +10,7 @@ const KEYS = {
   PENDING_CALLS: "@wegrow_pending_calls",
   ATTENDANCE: "@wegrow_attendance",
   APP_MODE: "@wegrow_app_mode",
+  STAFF_AVATARS: "@wegrow_staff_avatars",
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -310,5 +311,22 @@ export const StorageService = {
     };
     await AsyncStorage.setItem(`${KEYS.ATTENDANCE}_${today}_${callerName}`, JSON.stringify(updated));
     return updated;
+  },
+
+  // Staff Avatar Photos
+  async getStaffAvatars(): Promise<Record<string, string>> {
+    try {
+      const data = await AsyncStorage.getItem(KEYS.STAFF_AVATARS);
+      if (data) return JSON.parse(data);
+    } catch {}
+    return {};
+  },
+
+  async saveStaffAvatar(staffName: string, photoUrl: string): Promise<void> {
+    try {
+      const avatars = await StorageService.getStaffAvatars();
+      avatars[staffName] = photoUrl;
+      await AsyncStorage.setItem(KEYS.STAFF_AVATARS, JSON.stringify(avatars));
+    } catch {}
   },
 };

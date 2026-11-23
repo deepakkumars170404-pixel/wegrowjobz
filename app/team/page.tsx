@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Trophy,
   Medal,
@@ -14,13 +14,39 @@ import {
   Target,
   Clock,
   CheckCircle2,
+  Camera,
 } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
 import { Telecaller } from "@/types";
+import { StaffAvatar } from "@/components/shared/StaffAvatar";
 
 export default function TeamPerformancePage() {
-  const { telecallers } = useCRM();
+  const { telecallers, updateStaffAvatar } = useCRM();
   const [selectedCaller, setSelectedCaller] = useState<Telecaller | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUploadTarget, setAvatarUploadTarget] = useState<string | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !avatarUploadTarget) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      updateStaffAvatar(avatarUploadTarget, base64);
+      if (selectedCaller && selectedCaller.name.toLowerCase() === avatarUploadTarget.toLowerCase()) {
+        setSelectedCaller({ ...selectedCaller, avatar: base64 });
+      }
+      setAvatarUploadTarget(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const triggerPhotoUpload = (callerName: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setAvatarUploadTarget(callerName);
+    fileInputRef.current?.click();
+  };
 
   // Sorted by rank or admissions
   const sortedCallers = [...telecallers].sort((a, b) => a.rank - b.rank);
@@ -84,11 +110,21 @@ export default function TeamPerformancePage() {
                 </div>
 
                 <div className="flex items-center gap-3 mb-4">
-                  <img
-                    src={caller.avatar}
-                    alt={caller.name}
-                    className={`w-14 h-14 rounded-full object-cover ring-4 ${ringColor}`}
-                  />
+                  <div className="relative group/avatar">
+                    <StaffAvatar
+                      name={caller.name}
+                      avatarUrl={caller.avatar}
+                      size={56}
+                      ringColor={`ring-4 ${ringColor}`}
+                    />
+                    <button
+                      onClick={(e) => triggerPhotoUpload(caller.name, e)}
+                      title="Change Staff Photo"
+                      className="absolute -bottom-1 -right-1 p-1 rounded-full bg-white shadow-md border border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-all opacity-80 group-hover/avatar:opacity-100"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   <div>
                     <h3 className="font-bold text-slate-900 group-hover:text-[#244B7A] transition-colors">
                       {caller.name}
@@ -260,11 +296,21 @@ export default function TeamPerformancePage() {
               </button>
 
               <div className="flex items-center gap-4">
-                <img
-                  src={selectedCaller.avatar}
-                  alt={selectedCaller.name}
-                  className="w-16 h-16 rounded-full object-cover ring-4 ring-[#D5A52B]"
-                />
+                <div className="relative group/modalavatar">
+                  <StaffAvatar
+                    name={selectedCaller.name}
+                    avatarUrl={selectedCaller.avatar}
+                    size={64}
+                    ringColor="ring-4 ring-[#D5A52B]"
+                  />
+                  <button
+                    onClick={() => triggerPhotoUpload(selectedCaller.name)}
+                    title="Change Photo"
+                    className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-white shadow-md border border-slate-200 text-slate-700 hover:text-blue-600 hover:bg-slate-50 transition-all"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-lg font-bold text-white">
@@ -347,6 +393,14 @@ export default function TeamPerformancePage() {
           </div>
         </div>
       )}
+      {/* Hidden File Input for Image Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*"
+        className="hidden"
+      />
     </div>
   );
 }
