@@ -51,7 +51,7 @@ export const LiveCallModal: React.FC = () => {
   });
 
   // Staff Selection (Who Took The Call?)
-  const [selectedStaff, setSelectedStaff] = useState<StaffMember>("MuthuSelvi");
+  const [selectedStaff, setSelectedStaff] = useState<StaffMember>("Muthumeena");
 
   // Disposition Outcome
   const [outcome, setOutcome] = useState("Interested");

@@ -28,7 +28,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose }) =
   const [collegeName, setCollegeName] = useState("");
   const [passedOutYear, setPassedOutYear] = useState("2025");
   const [leadSource, setLeadSource] = useState<any>("Job Portal");
-  const [assignedCaller, setAssignedCaller] = useState<string>(WEGROW_STAFF_MEMBERS[0] || "MuthuSelvi");
+  const [assignedCaller, setAssignedCaller] = useState<string>(WEGROW_STAFF_MEMBERS[0] || "Muthumeena");
   const [priority, setPriority] = useState<LeadPriority>("Hot");
   const [status, setStatus] = useState<LeadStatus>("New");
   const [skillsNotes, setSkillsNotes] = useState("");

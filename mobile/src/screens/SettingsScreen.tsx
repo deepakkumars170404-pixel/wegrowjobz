@@ -16,7 +16,7 @@ import { ApiService } from "../services/api";
 import { AppSettings, WEGROW_STAFF_MEMBERS } from "../types";
 
 export const SettingsScreen: React.FC = () => {
-  const [callerName, setCallerName] = useState("MuthuSelvi");
+  const [callerName, setCallerName] = useState("Muthumeena");
   const [localRecording, setLocalRecording] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
 

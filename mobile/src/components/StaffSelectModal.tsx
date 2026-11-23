@@ -24,14 +24,10 @@ interface StaffSelectModalProps {
 }
 
 const STAFF_PASSWORDS: Record<string, string> = {
-  MuthuSelvi: "1234",
-  Sangeetha: "1234",
-  Kavitha: "1234",
-  Priya: "1234",
-  Subhashini: "1234",
   Muthumeena: "1234",
-  LakshmiPriya: "1234",
-  "Devi Priya": "1234",
+  "Gopinath (HR)": "1234",
+  Vijayakumar: "1234",
+  Thavabalan: "1234",
   Deepak: "1704",
 };
 
@@ -42,7 +38,7 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
   canCancel = false,
   onCancel,
 }) => {
-  const [selected, setSelected] = useState<StaffMember>(currentStaff || "MuthuSelvi");
+  const [selected, setSelected] = useState<StaffMember>(currentStaff || "Muthumeena");
   const [pin, setPin] = useState("1234");
   const [pinError, setPinError] = useState(false);
   const [avatarsMap, setAvatarsMap] = useState<Record<string, string>>({});

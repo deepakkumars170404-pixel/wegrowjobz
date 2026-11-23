@@ -14,10 +14,10 @@ const KEYS = {
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  crmServerUrl: "http://192.168.1.41:3001",
+  crmServerUrl: "https://wegrowcrm.vercel.app",
   admissionServerUrl: "https://wegrowcrm.vercel.app",
-  jobzServerUrl: "http://192.168.1.41:3001",
-  callerName: "MuthuSelvi",
+  jobzServerUrl: "https://wegrowcrm.vercel.app",
+  callerName: "Muthumeena",
   autoPopupDisposition: true,
   strictSafetyBlock: true,
   vibrateOnCall: true,
@@ -266,18 +266,34 @@ export const StorageService = {
     return record;
   },
 
-  async updateAttendanceSpokenSeconds(callerName: string, additionalSeconds: number): Promise<void> {
+  async updateAttendanceSpokenSeconds(callerName: string, additionalSeconds: number): Promise<AttendanceRecord | null> {
     try {
       const today = new Date().toISOString().split("T")[0];
       const existing = await StorageService.getTodayAttendance(callerName);
       if (existing) {
-        existing.spokenSeconds = (existing.spokenSeconds || 0) + additionalSeconds;
-        existing.totalCallsToday = (existing.totalCallsToday || 0) + 1;
+        existing.spokenSeconds = (existing.spokenSeconds || 0) + Math.max(0, additionalSeconds);
         await AsyncStorage.setItem(`${KEYS.ATTENDANCE}_${today}_${callerName}`, JSON.stringify(existing));
+        return existing;
       }
     } catch (e) {
       console.warn("[Storage] updateAttendanceSpokenSeconds error:", e);
     }
+    return null;
+  },
+
+  async incrementAttendanceCallsCount(callerName: string): Promise<AttendanceRecord | null> {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const existing = await StorageService.getTodayAttendance(callerName);
+      if (existing) {
+        existing.totalCallsToday = (existing.totalCallsToday || 0) + 1;
+        await AsyncStorage.setItem(`${KEYS.ATTENDANCE}_${today}_${callerName}`, JSON.stringify(existing));
+        return existing;
+      }
+    } catch (e) {
+      console.warn("[Storage] incrementAttendanceCallsCount error:", e);
+    }
+    return null;
   },
 
   async punchOutAttendance(

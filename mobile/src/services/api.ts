@@ -9,9 +9,9 @@ export const ApiService = {
     const settings = await StorageService.getSettings();
     let url = activeMode === "admission"
       ? (settings.admissionServerUrl || "https://wegrowcrm.vercel.app")
-      : (settings.jobzServerUrl || "http://192.168.1.41:3001");
-    if (!url || url.includes("192.168.29.60")) {
-      url = activeMode === "admission" ? "https://wegrowcrm.vercel.app" : "http://192.168.1.41:3001";
+      : (settings.jobzServerUrl || "https://wegrowcrm.vercel.app");
+    if (!url || url.includes("192.168.1.41")) {
+      url = "https://wegrowcrm.vercel.app";
     }
     if (url.endsWith("/")) url = url.slice(0, -1);
     return url;
@@ -410,8 +410,32 @@ export const ApiService = {
   async logCallOutcome(record: CallRecord): Promise<{ success: boolean; error?: string }> {
     let cloudSynced = false;
 
-    // Ensure a safe, valid lead ID exists
-    const safeLeadId = record.leadId || `LD-MOB-${Date.now()}`;
+    const activeMode = await StorageService.getAppMode();
+    const isJobz = activeMode === "jobz";
+    const leadsTable = isJobz ? "jobz_leads" : "leads";
+    const callsTable = isJobz ? "jobz_calls" : "calls";
+    const followUpsTable = isJobz ? "jobz_follow_ups" : "follow_ups";
+
+    let safeLeadId = record.leadId;
+    const cleanDigits = (record.phone || "").replace(/\D/g, "");
+    const last10 = cleanDigits.slice(-10);
+
+    // If Supabase is ready, check if this phone already exists in leadsTable to use existing lead ID
+    if (isSupabaseReady() && supabaseMobile && last10) {
+      try {
+        const { data: existingLeads } = await supabaseMobile
+          .from(leadsTable)
+          .select("id")
+          .like("phone", `%${last10}`)
+          .limit(1);
+        if (existingLeads && existingLeads.length > 0 && existingLeads[0].id) {
+          safeLeadId = existingLeads[0].id;
+        }
+      } catch {}
+    }
+    if (!safeLeadId || safeLeadId.startsWith("inq-")) {
+      safeLeadId = `LD-MOB-${Date.now()}`;
+    }
     record.leadId = safeLeadId;
 
     const mappedStatus =
@@ -451,12 +475,6 @@ export const ApiService = {
     // Works wherever phone is connected: Jio/Airtel 4G/5G, Hotspot, or any Wi-Fi!
     if (isSupabaseReady() && supabaseMobile) {
       try {
-        const activeMode = await StorageService.getAppMode();
-        const isJobz = activeMode === "jobz";
-        const leadsTable = isJobz ? "jobz_leads" : "leads";
-        const callsTable = isJobz ? "jobz_calls" : "calls";
-        const followUpsTable = isJobz ? "jobz_follow_ups" : "follow_ups";
-
         // Build composite course/domain & remarks info
         const targetDomain = record.preferredDomain || record.courseInterested || "General Enquiry";
         const academicInfo = [
@@ -554,7 +572,7 @@ export const ApiService = {
           );
         }
 
-        if (!cErr && !lErr) {
+        if (!cErr) {
           cloudSynced = true;
         }
       } catch (sbErr) {

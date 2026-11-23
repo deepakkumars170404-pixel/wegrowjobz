@@ -67,7 +67,7 @@ export const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({
   const [showKeypad, setShowKeypad] = useState<boolean>(false);
   const [recentLeads, setRecentLeads] = useState<Lead[]>([]);
   const [matchedLead, setMatchedLead] = useState<Lead | null>(null);
-  const [activeStaff, setActiveStaff] = useState<StaffMember>("MuthuSelvi");
+  const [activeStaff, setActiveStaff] = useState<StaffMember>("Muthumeena");
 
   // Multi-Call / Conference Support
   const [hasHeldCall, setHasHeldCall] = useState<boolean>(false);

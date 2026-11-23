@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   PhoneCall,
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
 import { CallRecord, WEGROW_STAFF_MEMBERS } from "@/types";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export default function CallManagementPage() {
   const { leads, activeUserRole } = useCRM();
@@ -25,6 +26,28 @@ export default function CallManagementPage() {
   const [ownerStaffFilter, setOwnerStaffFilter] = useState<string>("All");
   const [ownerStatusFilter, setOwnerStatusFilter] = useState<"All" | "Attended" | "Not Attended">("All");
   const [ownerSearch, setOwnerSearch] = useState<string>("");
+  const [directDbCalls, setDirectDbCalls] = useState<any[]>([]);
+
+  // Direct fetch from Supabase jobz_calls table for real-time audit feed
+  useEffect(() => {
+    const fetchDirectCalls = async () => {
+      if (!isSupabaseConfigured() || !supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from("jobz_calls")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (!error && data) {
+          setDirectDbCalls(data);
+        }
+      } catch {}
+    };
+
+    fetchDirectCalls();
+    const interval = setInterval(fetchDirectCalls, 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Determine if call was attended (spoken duration > 0) or not attended
   const isCallAttended = (call: CallRecord) => {
@@ -86,7 +109,7 @@ export default function CallManagementPage() {
     return "";
   };
 
-  // Aggregate all calls from all leads across the CRM
+  // Aggregate all calls from both direct Supabase jobz_calls table and cached leads
   const allCalls = useMemo(() => {
     const list: (CallRecord & {
       studentName: string;
@@ -95,19 +118,57 @@ export default function CallManagementPage() {
       leadId: string;
     })[] = [];
 
+    const seenIds = new Set<string>();
+
+    // 1. First add direct Supabase Cloud calls
+    directDbCalls.forEach((c: any) => {
+      const idKey = c.id || `${c.phone}_${c.call_date}_${c.call_time}`;
+      if (!seenIds.has(idKey)) {
+        seenIds.add(idKey);
+        list.push({
+          id: c.id,
+          leadId: c.lead_id || "",
+          studentName: c.student_name || "Candidate",
+          phone: c.phone || "",
+          studentPhone: c.phone || "",
+          callerName: c.caller_name || "Staff",
+          callDate: c.call_date,
+          callTime: c.call_time || c.from_time,
+          fromTime: c.from_time,
+          endTime: c.end_time,
+          duration: c.duration,
+          durationFormatted: c.duration_formatted,
+          durationSeconds: c.duration_seconds,
+          outcome: c.outcome || (c.duration_seconds > 0 ? "Attended Call" : "Not Attended Call"),
+          mindset: c.mindset,
+          courseInterested: c.course_interested || "",
+          studentCourse: c.course_interested || "Job Candidate",
+          qualification: c.qualification || "",
+          passedOutYear: c.passed_out_year || "",
+          collegeName: c.college_name || "",
+          remarks: c.remarks || "",
+        });
+      }
+    });
+
+    // 2. Also merge calls from leads
     leads.forEach((l) => {
       if (l.callHistory) {
         l.callHistory.forEach((c) => {
-          list.push({
-            ...c,
-            studentName: c.studentName || l.studentName,
-            studentPhone: c.phone || l.phone,
-            studentCourse: c.courseInterested || l.courseInterested,
-            qualification: c.qualification || l.qualification || "",
-            passedOutYear: c.passedOutYear || l.passedOutYear || "",
-            collegeName: c.collegeName || l.collegeName || "",
-            leadId: l.id,
-          });
+          const idKey = c.id || `${c.phone || l.phone}_${c.callDate}_${c.callTime}`;
+          if (!seenIds.has(idKey)) {
+            seenIds.add(idKey);
+            list.push({
+              ...c,
+              studentName: c.studentName || l.studentName,
+              studentPhone: c.phone || l.phone,
+              studentCourse: c.courseInterested || l.courseInterested,
+              qualification: c.qualification || l.qualification || "",
+              passedOutYear: c.passedOutYear || l.passedOutYear || "",
+              collegeName: c.collegeName || l.collegeName || "",
+              leadId: l.id,
+            });
+          }
         });
       }
     });
@@ -122,7 +183,7 @@ export default function CallManagementPage() {
       const bTime = b.id ? parseInt(b.id.replace(/\D/g, ""), 10) || 0 : 0;
       return bTime - aTime;
     });
-  }, [leads]);
+  }, [leads, directDbCalls]);
 
   // Filtered Calls for Audit View
   const filteredOwnerCalls = useMemo(() => {

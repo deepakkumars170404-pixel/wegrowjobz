@@ -35,11 +35,13 @@ export interface Lead {
 }
 
 export const WEGROW_STAFF_MEMBERS = [
-  "Devi Priya",
-  "Subhashini",
-  "MuthuSelvi",
-  "LakshmiPriya",
   "Muthumeena",
+] as const;
+
+export const WEGROW_ADMIN_MEMBERS = [
+  "Gopinath (HR)",
+  "Vijayakumar",
+  "Thavabalan",
 ] as const;
 
 export type StaffMember = (typeof WEGROW_STAFF_MEMBERS)[number];

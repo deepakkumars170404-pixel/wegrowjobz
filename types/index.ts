@@ -1,21 +1,14 @@
 export const WEGROW_STAFF_MEMBERS = [
-  "Devi Priya",
-  "Subhashini",
-  "MuthuSelvi",
-  "LakshmiPriya",
   "Muthumeena",
 ] as const;
 
 export const WEGROW_MANAGEMENT = {
   owner: "Thavabalan",
-  adminGM: "LakshmiPriya",
-  hr: "Gopi",
-  telecallHead: "Muthumeena",
+  admins: [
+    "Gopinath (HR)",
+    "Vijayakumar",
+  ],
   telecallers: [
-    "Devi Priya",
-    "MuthuSelvi",
-    "LakshmiPriya",
-    "Subhashini",
     "Muthumeena",
   ],
 } as const;

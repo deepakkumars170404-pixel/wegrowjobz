@@ -87,7 +87,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   const isJobz = appMode === "jobz";
   const [recordingFound, setRecordingFound] = useState<string | undefined>(recordingPath);
 
-  const [callerName, setCallerName] = useState<StaffMember>("MuthuSelvi");
+  const [callerName, setCallerName] = useState<StaffMember>("Muthumeena");
   const [candidateName, setCandidateName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [startTimeStr, setStartTimeStr] = useState("");
@@ -103,9 +103,48 @@ export const CallModal: React.FC<CallModalProps> = ({
   const [passedOutYear, setPassedOutYear] = useState("2024");
   const [collegeName, setCollegeName] = useState("");
   const [notes, setNotes] = useState("");
+  const [customReason, setCustomReason] = useState("");
   const [nextFollowUpDate, setNextFollowUpDate] = useState("");
   const [nextFollowUpTime, setNextFollowUpTime] = useState("10:30 AM");
   const [submitting, setSubmitting] = useState(false);
+
+  // Mini Calendar & Mini Clock State for Follow-up
+  const [showMiniCalendar, setShowMiniCalendar] = useState(false);
+  const [showMiniClock, setShowMiniClock] = useState(false);
+  const [clockHour, setClockHour] = useState("10");
+  const [clockMinute, setClockMinute] = useState("30");
+  const [clockAmPm, setClockAmPm] = useState<"AM" | "PM">("AM");
+
+  // Helper to format ISO date string
+  const formatOffsetDate = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  // Generate next 14 calendar days for 1-tap mini calendar
+  const next14Days = useMemo(() => {
+    const list: { dateStr: string; dayName: string; dayNum: number; monthName: string }[] = [];
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      list.push({
+        dateStr: `${y}-${m}-${day}`,
+        dayName: dayNames[d.getDay()],
+        dayNum: d.getDate(),
+        monthName: monthNames[d.getMonth()],
+      });
+    }
+    return list;
+  }, []);
 
   // Search queries & suggestion visibility
   const [domainQuery, setDomainQuery] = useState("");
@@ -248,7 +287,8 @@ export const CallModal: React.FC<CallModalProps> = ({
       collegeName,
       callStartTime: startTimeStr,
       callEndTime: endTimeStr,
-      notes,
+      notes: [customReason.trim() ? `Reason: ${customReason.trim()}` : "", notes.trim()].filter(Boolean).join(" • "),
+      remarks: [customReason.trim() ? `Reason: ${customReason.trim()}` : "", notes.trim()].filter(Boolean).join(" • "),
       nextFollowUpDate: ["Call Later", "Interested", "Interview Scheduled", "Counselling Scheduled"].includes(disposition)
         ? nextFollowUpDate
         : undefined,
@@ -471,6 +511,20 @@ export const CallModal: React.FC<CallModalProps> = ({
               })}
             </View>
 
+            {/* Candidate Specific Reason / Other Feedback Input Box */}
+            <View style={styles.reasonInputCard}>
+              <Text style={styles.reasonInputLabel}>
+                💬 Specific Reason / Candidate Feedback (Optional):
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Type specific reason if candidate gave other details (e.g. Salary clash, Relocation, Timing issue)..."
+                value={customReason}
+                onChangeText={setCustomReason}
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+
             {/* Job Fields (Jobz Mode) */}
             {isJobz ? (
               <View style={styles.jobzSection}>
@@ -678,22 +732,272 @@ export const CallModal: React.FC<CallModalProps> = ({
               )}
             </View>
 
-            {/* Next Callback Date / Follow-up */}
+            {/* Next Callback Date / Follow-up (Interactive Mini Calendar & Mini Clock) */}
             {["Call Later", "Interested", "Interview Scheduled", "Counselling Scheduled"].includes(disposition) && (
-              <View style={styles.fuBox}>
-                <Text style={styles.sectionLabel}>Schedule Next Follow-up</Text>
-                <View style={styles.row}>
+              <View style={styles.scheduleBox}>
+                <View style={styles.scheduleHeaderRow}>
+                  <Text style={styles.sectionLabel}>📅 SCHEDULE NEXT FOLLOW-UP</Text>
+                  {(Boolean(nextFollowUpDate) || Boolean(nextFollowUpTime)) && (
+                    <TouchableOpacity
+                      style={styles.clearFollowUpBtn}
+                      onPress={() => {
+                        setNextFollowUpDate("");
+                        setNextFollowUpTime("");
+                      }}
+                    >
+                      <Text style={styles.clearFollowUpText}>✕ Clear</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Selected Date & Time Badge / Text preview */}
+                {(Boolean(nextFollowUpDate) || Boolean(nextFollowUpTime)) ? (
+                  <View style={styles.scheduleSummaryBar}>
+                    <Text style={styles.scheduleSummaryText}>
+                      📌 Scheduled:{" "}
+                      <Text style={styles.scheduleSummaryHighlight}>
+                        {nextFollowUpDate || "No Date"}
+                      </Text>{" "}
+                      at{" "}
+                      <Text style={styles.scheduleSummaryHighlight}>
+                        {nextFollowUpTime || "No Time"}
+                      </Text>
+                    </Text>
+                  </View>
+                ) : null}
+
+                {/* --- A. MINI CALENDAR --- */}
+                <View style={styles.pickerSection}>
+                  <View style={styles.pickerLabelRow}>
+                    <Text style={styles.pickerSubLabel}>🗓️ DATE (Choose 1-Tap):</Text>
+                    <TouchableOpacity
+                      style={styles.pickerToggleBtn}
+                      onPress={() => setShowMiniCalendar((prev) => !prev)}
+                    >
+                      <Text style={styles.pickerToggleText}>
+                        {showMiniCalendar ? "▲ Close Calendar" : "▼ 14-Day Calendar"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Quick Date Chips */}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipsScrollContainer}
+                  >
+                    {[
+                      { label: "Today", days: 0 },
+                      { label: "Tomorrow", days: 1 },
+                      { label: "+2 Days", days: 2 },
+                      { label: "+3 Days", days: 3 },
+                      { label: "+5 Days", days: 5 },
+                      { label: "Next Week", days: 7 },
+                    ].map((item) => {
+                      const targetDate = formatOffsetDate(item.days);
+                      const isSelected = nextFollowUpDate === targetDate;
+                      return (
+                        <TouchableOpacity
+                          key={item.label}
+                          style={[styles.dateChip, isSelected && styles.dateChipActive]}
+                          onPress={() => setNextFollowUpDate(targetDate)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.dateChipText, isSelected && styles.dateChipTextActive]}>
+                            {item.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {/* Expandable 14-Day Calendar Horizontal Strip */}
+                  {showMiniCalendar && (
+                    <View style={styles.calendarContainer}>
+                      <Text style={styles.calendarHeaderInfo}>Select from next 14 days:</Text>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.calendarDaysRow}
+                      >
+                        {next14Days.map((day) => {
+                          const isSelected = nextFollowUpDate === day.dateStr;
+                          return (
+                            <TouchableOpacity
+                              key={day.dateStr}
+                              style={[styles.dayCard, isSelected && styles.dayCardActive]}
+                              onPress={() => {
+                                setNextFollowUpDate(day.dateStr);
+                                setShowMiniCalendar(false);
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Text
+                                style={[styles.dayCardDayName, isSelected && styles.dayCardTextActive]}
+                              >
+                                {day.dayName}
+                              </Text>
+                              <Text
+                                style={[styles.dayCardDayNum, isSelected && styles.dayCardTextActive]}
+                              >
+                                {day.dayNum}
+                              </Text>
+                              <Text
+                                style={[styles.dayCardMonth, isSelected && styles.dayCardTextActive]}
+                              >
+                                {day.monthName}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+
+                {/* --- B. MINI CLOCK --- */}
+                <View style={[styles.pickerSection, { marginTop: 8 }]}>
+                  <View style={styles.pickerLabelRow}>
+                    <Text style={styles.pickerSubLabel}>⏰ TIME (Choose 1-Tap):</Text>
+                    <TouchableOpacity
+                      style={styles.pickerToggleBtn}
+                      onPress={() => setShowMiniClock((prev) => !prev)}
+                    >
+                      <Text style={styles.pickerToggleText}>
+                        {showMiniClock ? "▲ Close Clock" : "▼ Custom Clock"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Quick Common Follow-up Times */}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipsScrollContainer}
+                  >
+                    {[
+                      "10:30 AM",
+                      "11:30 AM",
+                      "12:30 PM",
+                      "02:30 PM",
+                      "03:30 PM",
+                      "04:30 PM",
+                      "05:30 PM",
+                      "06:30 PM",
+                    ].map((timeOption) => {
+                      const isSelected = nextFollowUpTime === timeOption;
+                      return (
+                        <TouchableOpacity
+                          key={timeOption}
+                          style={[styles.timeChip, isSelected && styles.timeChipActive]}
+                          onPress={() => setNextFollowUpTime(timeOption)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.timeChipText, isSelected && styles.timeChipTextActive]}>
+                            {timeOption}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {/* Expandable Interactive Mini Clock Picker */}
+                  {showMiniClock && (
+                    <View style={styles.clockPickerContainer}>
+                      <View style={styles.clockAmPmRow}>
+                        <Text style={styles.clockPickerHeader}>AM / PM:</Text>
+                        <View style={styles.amPmBtnGroup}>
+                          <TouchableOpacity
+                            style={[styles.amPmBtn, clockAmPm === "AM" && styles.amPmBtnActive]}
+                            onPress={() => {
+                              setClockAmPm("AM");
+                              setNextFollowUpTime(`${clockHour}:${clockMinute} AM`);
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.amPmBtnText,
+                                clockAmPm === "AM" && styles.amPmBtnTextActive,
+                              ]}
+                            >
+                              AM (Morning)
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.amPmBtn, clockAmPm === "PM" && styles.amPmBtnActive]}
+                            onPress={() => {
+                              setClockAmPm("PM");
+                              setNextFollowUpTime(`${clockHour}:${clockMinute} PM`);
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.amPmBtnText,
+                                clockAmPm === "PM" && styles.amPmBtnTextActive,
+                              ]}
+                            >
+                              PM (Afternoon/Evening)
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {/* Hour selector */}
+                      <Text style={styles.clockRowTitle}>Hour:</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.clockNumberRow}>
+                        {["09", "10", "11", "12", "01", "02", "03", "04", "05", "06", "07"].map((h) => (
+                          <TouchableOpacity
+                            key={h}
+                            style={[styles.clockHourBtn, clockHour === h && styles.clockHourBtnActive]}
+                            onPress={() => {
+                              setClockHour(h);
+                              setNextFollowUpTime(`${h}:${clockMinute} ${clockAmPm}`);
+                            }}
+                          >
+                            <Text style={[styles.clockHourBtnText, clockHour === h && styles.clockHourBtnTextActive]}>
+                              {h}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+
+                      {/* Minute selector */}
+                      <Text style={styles.clockRowTitle}>Minute:</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.clockNumberRow}>
+                        {["00", "15", "30", "45"].map((m) => (
+                          <TouchableOpacity
+                            key={m}
+                            style={[styles.clockHourBtn, clockMinute === m && styles.clockHourBtnActive]}
+                            onPress={() => {
+                              setClockMinute(m);
+                              setNextFollowUpTime(`${clockHour}:${m} ${clockAmPm}`);
+                            }}
+                          >
+                            <Text style={[styles.clockHourBtnText, clockMinute === m && styles.clockHourBtnTextActive]}>
+                              {m}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+
+                {/* Confirmation inputs */}
+                <View style={[styles.row, { marginTop: 8 }]}>
                   <TextInput
-                    style={[styles.input, { flex: 1, marginRight: 8 }]}
-                    placeholder="YYYY-MM-DD (e.g. 2026-11-19)"
+                    style={[styles.input, { flex: 1, marginRight: 8, marginBottom: 0 }]}
+                    placeholder="Date (YYYY-MM-DD)"
                     value={nextFollowUpDate}
                     onChangeText={setNextFollowUpDate}
+                    placeholderTextColor="#94A3B8"
                   />
                   <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    placeholder="Time (e.g. 11:00 AM)"
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    placeholder="Time (e.g. 03:30 PM)"
                     value={nextFollowUpTime}
                     onChangeText={setNextFollowUpTime}
+                    placeholderTextColor="#94A3B8"
                   />
                 </View>
               </View>
@@ -1119,5 +1423,263 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
+  },
+  reasonInputCard: {
+    backgroundColor: "#F8FAFC",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 12,
+  },
+  reasonInputLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#334155",
+    marginBottom: 6,
+  },
+  scheduleBox: {
+    backgroundColor: "#F0FDF4",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: "#86EFAC",
+  },
+  scheduleHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  clearFollowUpBtn: {
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+  },
+  clearFollowUpText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#DC2626",
+  },
+  scheduleSummaryBar: {
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+  scheduleSummaryText: {
+    fontSize: 11,
+    color: "#166534",
+    fontWeight: "600",
+  },
+  scheduleSummaryHighlight: {
+    fontWeight: "900",
+    color: "#14532D",
+  },
+  pickerSection: {
+    backgroundColor: "#FFFFFF",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  pickerLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  pickerSubLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#1E293B",
+  },
+  pickerToggleBtn: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  pickerToggleText: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+  chipsScrollContainer: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  dateChip: {
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+  dateChipActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#1D4ED8",
+  },
+  dateChipText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  dateChipTextActive: {
+    color: "#FFFFFF",
+  },
+  calendarContainer: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+  },
+  calendarHeaderInfo: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#64748B",
+    marginBottom: 6,
+  },
+  calendarDaysRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  dayCard: {
+    width: 46,
+    height: 56,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayCardActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#1D4ED8",
+  },
+  dayCardDayName: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase",
+  },
+  dayCardDayNum: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#0F172A",
+  },
+  dayCardMonth: {
+    fontSize: 9,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  dayCardTextActive: {
+    color: "#FFFFFF",
+  },
+  timeChip: {
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+  timeChipActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#1D4ED8",
+  },
+  timeChipText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  timeChipTextActive: {
+    color: "#FFFFFF",
+  },
+  clockPickerContainer: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+  },
+  clockAmPmRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  clockPickerHeader: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  amPmBtnGroup: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  amPmBtn: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+  amPmBtnActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#1D4ED8",
+  },
+  amPmBtnText: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  amPmBtnTextActive: {
+    color: "#FFFFFF",
+  },
+  clockRowTitle: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#64748B",
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  clockNumberRow: {
+    flexDirection: "row",
+    gap: 6,
+    paddingBottom: 2,
+  },
+  clockHourBtn: {
+    width: 34,
+    height: 32,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  clockHourBtnActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#1D4ED8",
+  },
+  clockHourBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  clockHourBtnTextActive: {
+    color: "#FFFFFF",
   },
 });

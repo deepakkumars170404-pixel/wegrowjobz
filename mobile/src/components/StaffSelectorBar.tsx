@@ -10,7 +10,7 @@ interface StaffSelectorBarProps {
 }
 
 export const StaffSelectorBar: React.FC<StaffSelectorBarProps> = ({ onStaffChanged }) => {
-  const [activeStaff, setActiveStaff] = useState<StaffMember>("MuthuSelvi");
+  const [activeStaff, setActiveStaff] = useState<StaffMember>("Muthumeena");
 
   useEffect(() => {
     StorageService.getSettings().then((s) => {

@@ -122,7 +122,7 @@ const getCandidateDealValue = (domain?: string): number => {
 export default function JobzPipelinePage() {
   const { leads, updateLeadStatus, telecallers, activeUserRole, showToast, initiateCall } = useCRM();
 
-  const isOwner = activeUserRole === "Owner" || activeUserRole === "Owner / MD" || activeUserRole === "Admin";
+  const isOwner = activeUserRole === "Owner" || activeUserRole === "Owner / MD" || activeUserRole === "Admin" || activeUserRole.includes("Admin") || activeUserRole === "Gopinath (HR)" || activeUserRole === "Vijayakumar";
 
   const [selectedDomain, setSelectedDomain] = useState("All");
   const [selectedCaller, setSelectedCaller] = useState("All");
@@ -130,10 +130,10 @@ export default function JobzPipelinePage() {
 
   // Filter leads according to domain, caller and search
   const filteredLeads = leads.filter((l) => {
-    // If Telecaller, default to viewing only their candidates unless owner
+    // If Telecaller, default to viewing only their candidates unless owner/admin
     if (!isOwner && l.assignedCaller && activeUserRole && l.assignedCaller !== activeUserRole) {
-      // If role matches one of telecallers
-      if (["MuthuSelvi", "Devi Priya", "LakshmiPriya", "Subhashini", "Muthumeena"].includes(activeUserRole)) {
+      // If role matches telecaller
+      if (["Muthumeena"].includes(activeUserRole)) {
         return false;
       }
     }

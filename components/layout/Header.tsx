@@ -45,15 +45,11 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   const isOwner = activeUserRole === "Owner" || activeUserRole === "Owner / MD";
-  const isAdmin = activeUserRole === "Admin";
+  const isAdmin = activeUserRole === "Admin" || activeUserRole === "Admin (Gopinath)" || activeUserRole === "Admin (Vijayakumar)";
   const isTelecaller = !isOwner && !isAdmin;
 
   const staffList = [
-    "MuthuSelvi",
-    "Devi Priya",
-    "Subhashini",
     "Muthumeena",
-    "LakshmiPriya",
   ];
 
   // Page title mapping for WeGrow Jobz
@@ -237,9 +233,40 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-blue-600" />
-                  <span>👑 Owner / MD</span>
+                  <span>👑 Owner (Thavabalan)</span>
                 </div>
                 {isOwner && <Check className="w-3.5 h-3.5 text-blue-600" />}
+              </button>
+
+              <div className="border-t border-slate-100 my-1" />
+              <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Admins (Full Access)
+              </div>
+              <button
+                onClick={() => {
+                  setActiveUserRole("Admin (Gopinath)");
+                  setIsRoleDropdownOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Shield className="w-3.5 h-3.5 text-purple-600" />
+                  <span>🛡️ Gopinath (HR)</span>
+                </div>
+                {activeUserRole === "Admin (Gopinath)" && <Check className="w-3.5 h-3.5 text-purple-600" />}
+              </button>
+              <button
+                onClick={() => {
+                  setActiveUserRole("Admin (Vijayakumar)");
+                  setIsRoleDropdownOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Shield className="w-3.5 h-3.5 text-purple-600" />
+                  <span>🛡️ Vijayakumar</span>
+                </div>
+                {activeUserRole === "Admin (Vijayakumar)" && <Check className="w-3.5 h-3.5 text-purple-600" />}
               </button>
 
               <div className="border-t border-slate-100 my-1" />
@@ -248,7 +275,7 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
 
               {staffList.map((staff) => {
-                const isSelected = activeUserRole === `Telecaller (${staff})` || (activeUserRole === "Telecaller" && staff === "MuthuSelvi");
+                const isSelected = activeUserRole === `Telecaller (${staff})` || (activeUserRole === "Telecaller" && staff === "Muthumeena");
                 return (
                   <button
                     key={staff}

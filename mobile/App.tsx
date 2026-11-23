@@ -43,7 +43,7 @@ export default function App() {
   const [modalStartMs, setModalStartMs] = useState<number | undefined>(undefined);
   const [modalEndMs, setModalEndMs] = useState<number | undefined>(undefined);
   const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
-  const [activeStaff, setActiveStaff] = useState<StaffMember>("MuthuSelvi");
+  const [activeStaff, setActiveStaff] = useState<StaffMember>("Muthumeena");
 
   // Mode Switcher: Admission vs Jobz
   const [appMode, setAppMode] = useState<AppMode>("jobz");
@@ -85,7 +85,7 @@ export default function App() {
       setAppMode(savedMode);
 
       const settings = await StorageService.getSettings();
-      const staff = (settings.callerName as StaffMember) || "MuthuSelvi";
+      const staff = (settings.callerName as StaffMember) || "Muthumeena";
       setActiveStaff(staff);
 
       // Check today's attendance for this staff
@@ -116,20 +116,7 @@ export default function App() {
     })();
   }, []);
 
-  // Spoken Timer Counter (Runs every second while in an active call)
-  useEffect(() => {
-    if (!isPunchedIn) return;
-
-    const timer = setInterval(() => {
-      if (isCallingRef.current) {
-        setSpokenSeconds((prev) => prev + 1);
-      }
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isPunchedIn]);
-
-  // Handle Mode Switch (Auto switches server URL & Dialers between Admission & Jobz)
+  // Mode Switch Helper
   const handleToggleMode = async (mode: AppMode) => {
     setAppMode(mode);
     await StorageService.setAppMode(mode);
@@ -244,13 +231,14 @@ export default function App() {
     setModalEndMs(callData.endMs);
     setModalRecordingPath(callData.recordingPath);
     setIsModalVisible(true);
-    setCompletedCallsCount((c) => c + 1);
 
     // Accurately accumulate spoken seconds from carrier/Google dialer call duration
     if (callData.durationSeconds > 0) {
       setSpokenSeconds((prev) => {
         const updated = prev + callData.durationSeconds;
-        StorageService.updateAttendanceSpokenSeconds(activeStaff, callData.durationSeconds).catch(() => {});
+        StorageService.updateAttendanceSpokenSeconds(activeStaff, callData.durationSeconds).then((att) => {
+          if (att) ApiService.syncAttendanceRecord(att).catch(() => {});
+        }).catch(() => {});
         return updated;
       });
     }
@@ -425,6 +413,9 @@ export default function App() {
         onSaveSuccess={() => {
           setIsModalVisible(false);
           setCompletedCallsCount((c) => c + 1);
+          StorageService.incrementAttendanceCallsCount(activeStaff).then((att) => {
+            if (att) ApiService.syncAttendanceRecord(att).catch(() => {});
+          }).catch(() => {});
         }}
       />
 

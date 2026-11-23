@@ -32,7 +32,7 @@ export const LogCallModal: React.FC<LogCallModalProps> = ({ isOpen, onClose, lea
     fields: DEFAULT_POST_CALL_FIELDS,
   });
 
-  const [selectedStaff, setSelectedStaff] = useState<StaffMember>("MuthuSelvi");
+  const [selectedStaff, setSelectedStaff] = useState<StaffMember>("Muthumeena");
   const [outcome, setOutcome] = useState("Interested");
   const [remarks, setRemarks] = useState("");
   const [nextFollowUpDate, setNextFollowUpDate] = useState("");
