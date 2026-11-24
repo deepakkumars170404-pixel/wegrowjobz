@@ -160,6 +160,11 @@ export const ApiService = {
           }
 
           await StorageService.saveCachedLeads(dedupedLeads);
+          // Auto-register callers present in downloaded leads
+          const callersInLeads = Array.from(new Set(dedupedLeads.map(l => (l.assignedCaller || '').trim()).filter(Boolean)));
+          for (const c of callersInLeads) {
+            await StorageService.addStaffMember(c);
+          }
           return { success: true, leads: dedupedLeads };
         } else if (dbLeads && dbLeads.length === 0) {
           // Table exists but has 0 leads
@@ -216,6 +221,10 @@ export const ApiService = {
           }
           if (dedupedLeads.length > 0) {
             await StorageService.saveCachedLeads(dedupedLeads);
+            const callersInLeads = Array.from(new Set(dedupedLeads.map(l => (l.assignedCaller || '').trim()).filter(Boolean)));
+            for (const c of callersInLeads) {
+              await StorageService.addStaffMember(c);
+            }
           }
           return { success: true, leads: dedupedLeads };
         }

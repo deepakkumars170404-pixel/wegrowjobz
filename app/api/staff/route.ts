@@ -43,13 +43,58 @@ function writeStorage(data: any) {
 export async function GET() {
   try {
     const storage = readStorage();
-    let telecallers = storage.telecallers;
+    let telecallers = Array.isArray(storage.telecallers) && storage.telecallers.length > 0
+      ? storage.telecallers
+      : [...initialTelecallers];
 
-    if (!telecallers || !Array.isArray(telecallers) || telecallers.length === 0) {
-      telecallers = initialTelecallers;
-      storage.telecallers = telecallers;
-      writeStorage(storage);
+    // Automatically detect all callers assigned to leads or in call history
+    const callersFromLeads: string[] = [];
+    if (Array.isArray(storage.leads)) {
+      storage.leads.forEach((l: any) => {
+        if (l.assignedCaller && typeof l.assignedCaller === "string" && l.assignedCaller.trim()) {
+          callersFromLeads.push(l.assignedCaller.trim());
+        }
+        if (Array.isArray(l.callHistory)) {
+          l.callHistory.forEach((c: any) => {
+            if (c.callerName && typeof c.callerName === "string" && c.callerName.trim()) {
+              callersFromLeads.push(c.callerName.trim());
+            }
+          });
+        }
+      });
     }
+
+    const uniqueCallers = Array.from(new Set(callersFromLeads));
+    uniqueCallers.forEach((callerName) => {
+      const lower = callerName.toLowerCase();
+      if (!telecallers.some((t: any) => (t.name || "").toLowerCase() === lower)) {
+        telecallers.push({
+          id: `tc-${lower.replace(/[^a-z0-9]/g, "") || Date.now()}`,
+          name: callerName,
+          phone: "+91 98431 73678",
+          email: `${lower.replace(/[^a-z0-9]/g, "")}@wegrowjobz.com`,
+          avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+          role: "Telecalling Executive",
+          assignedLeads: 10,
+          dailyTarget: 50,
+          callsCompleted: 0,
+          connectedCalls: 0,
+          interestedLeads: 0,
+          followUpsCompleted: 0,
+          admissionsGenerated: 0,
+          conversionRate: 0,
+          rank: telecallers.length + 1,
+          status: "Active",
+          isPunchedIn: true,
+          punchInTime: "09:30 AM",
+          workingHours: "0h 0m",
+          password: "1234",
+        });
+      }
+    });
+
+    storage.telecallers = telecallers;
+    writeStorage(storage);
 
     const staffNames = Array.from(new Set(telecallers.map((t: any) => t.name).filter(Boolean)));
 
