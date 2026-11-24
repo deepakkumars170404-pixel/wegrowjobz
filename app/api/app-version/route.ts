@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     versionCode: 3,
     versionName: "1.0.3",
     releaseDate: "2026-11-19",
-    apkUrl: `http://${hostIp}:8080/WegrowTelecaller_Jobz.apk`,
+    apkUrl: `http://${hostIp}:8080/WegrowJobz.apk`,
     fallbackApkUrl: `${protocol}://${host}/api/download-apk`,
     forceUpdate: false,
     releaseNotes: [
