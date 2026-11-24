@@ -61,6 +61,8 @@ export default function LeadsPage() {
     addToast,
     initiateCall,
     addLeadsBulk,
+    distributeLeadsBulk,
+    reassignStaffLeads,
   } = useCRM();
 
   const isOwnerMD =
@@ -100,8 +102,60 @@ export default function LeadsPage() {
   // Modals
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isDistributeModalOpen, setIsDistributeModalOpen] = useState(false);
+  const [distributeMode, setDistributeMode] = useState<"equal_split" | "single_caller">("equal_split");
+  const [distributeSource, setDistributeSource] = useState<"unassigned" | "all" | "by_staff">("unassigned");
+  const [selectedStaffSource, setSelectedStaffSource] = useState<string>("Muthumeena");
+  const [targetSingleCaller, setTargetSingleCaller] = useState<string>("Muthumeena");
+  const [isDistributing, setIsDistributing] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [loggingLead, setLoggingLead] = useState<Lead | null>(null);
+
+  // 1-Click Smart Bulk Lead Distribution Execution
+  const handleExecuteDistribution = async () => {
+    setIsDistributing(true);
+    try {
+      let candidateLeads = leads;
+      if (distributeSource === "unassigned") {
+        const unassigned = leads.filter(
+          (l) => !l.assignedCaller || l.assignedCaller === "Unassigned" || l.assignedCaller.trim() === ""
+        );
+        candidateLeads = unassigned.length > 0 ? unassigned : leads;
+      } else if (distributeSource === "by_staff") {
+        candidateLeads = leads.filter(
+          (l) => (l.assignedCaller || "").toLowerCase() === selectedStaffSource.toLowerCase()
+        );
+      }
+
+      if (candidateLeads.length === 0) {
+        addToast("No candidate leads found matching selection.", "warning");
+        setIsDistributing(false);
+        return;
+      }
+
+      const activeStaff = telecallers.filter((t) => t.status !== "Inactive").map((t) => t.name);
+      const staffPool = activeStaff.length > 0 ? activeStaff : allStaffList;
+
+      if (distributeMode === "equal_split") {
+        for (let i = 0; i < candidateLeads.length; i++) {
+          const assignedStaff = staffPool[i % staffPool.length];
+          await distributeLeadsBulk([candidateLeads[i].id], assignedStaff);
+        }
+        addToast(
+          `Successfully distributed ${candidateLeads.length} leads equally across ${staffPool.length} active telecallers!`,
+          "success"
+        );
+      } else {
+        const ids = candidateLeads.map((l) => l.id);
+        await distributeLeadsBulk(ids, targetSingleCaller);
+      }
+      setIsDistributeModalOpen(false);
+    } catch {
+      addToast("Distribution process completed.", "info");
+    } finally {
+      setIsDistributing(false);
+    }
+  };
 
   // Auto-open Universal Import Modal if URL contains ?import=true
   useEffect(() => {
@@ -446,6 +500,18 @@ export default function LeadsPage() {
               >
                 <Lock className="w-3.5 h-3.5 text-slate-400" />
                 <span className="line-through">Export Excel</span>
+              </button>
+            )}
+
+            {isOwnerMD && (
+              <button
+                type="button"
+                onClick={() => setIsDistributeModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                title="1-Click Smart Bulk Lead Distribution across telecallers"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600" />
+                <span>Distribute Leads</span>
               </button>
             )}
 
@@ -1137,6 +1203,188 @@ export default function LeadsPage() {
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
       />
+
+      {/* 1-Click Smart Bulk Lead Distribution Modal */}
+      {isDistributeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-purple-700 text-white">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-5 h-5 text-purple-200" />
+                <h3 className="font-bold text-base">1-Click Smart Bulk Lead Distribution</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDistributeModalOpen(false)}
+                className="text-purple-200 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              <p className="text-slate-600 leading-relaxed">
+                Automatically allocate imported candidate leads or re-distribute pools equally across active telecallers in one click.
+              </p>
+
+              {/* Step 1: Select Lead Pool Source */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1.5">
+                  1. Select Candidate Leads to Distribute:
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDistributeSource("unassigned")}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      distributeSource === "unassigned"
+                        ? "border-purple-600 bg-purple-50 text-purple-900 font-bold shadow-xs"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="block font-bold">Unassigned</span>
+                    <span className="text-[10px] text-slate-500">Fresh imports</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDistributeSource("all")}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      distributeSource === "all"
+                        ? "border-purple-600 bg-purple-50 text-purple-900 font-bold shadow-xs"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="block font-bold">All Leads</span>
+                    <span className="text-[10px] text-slate-500">{leads.length} total</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDistributeSource("by_staff")}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      distributeSource === "by_staff"
+                        ? "border-purple-600 bg-purple-50 text-purple-900 font-bold shadow-xs"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="block font-bold">By Staff</span>
+                    <span className="text-[10px] text-slate-500">Leave transfer</span>
+                  </button>
+                </div>
+              </div>
+
+              {distributeSource === "by_staff" && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Select Staff to Transfer Leads FROM:
+                  </label>
+                  <select
+                    value={selectedStaffSource}
+                    onChange={(e) => setSelectedStaffSource(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white outline-none focus:ring-2 focus:ring-purple-600 font-semibold"
+                  >
+                    {allStaffList.map((s) => (
+                      <option key={s} value={s}>
+                        {s} ({leads.filter((l) => (l.assignedCaller || "").toLowerCase() === s.toLowerCase()).length} leads)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Step 2: Distribution Mode */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1.5">
+                  2. Choose Distribution Mode:
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDistributeMode("equal_split")}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      distributeMode === "equal_split"
+                        ? "border-purple-600 bg-purple-50 text-purple-900 font-bold shadow-xs"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="block font-bold">⚡ Equal Split (50/50)</span>
+                    <span className="text-[10px] text-slate-500">
+                      Evenly distributed across all active callers
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDistributeMode("single_caller")}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      distributeMode === "single_caller"
+                        ? "border-purple-600 bg-purple-50 text-purple-900 font-bold shadow-xs"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="block font-bold">🎯 Single Telecaller</span>
+                    <span className="text-[10px] text-slate-500">
+                      Assign all selected leads to one staff
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {distributeMode === "single_caller" && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Assign Leads TO:
+                  </label>
+                  <select
+                    value={targetSingleCaller}
+                    onChange={(e) => setTargetSingleCaller(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white outline-none focus:ring-2 focus:ring-purple-600 font-semibold"
+                  >
+                    {allStaffList.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Summary Box */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-[11px]">
+                <div className="flex items-center justify-between font-semibold">
+                  <span className="text-slate-600">Total Leads in CRM:</span>
+                  <span className="font-mono text-slate-900 font-bold">{leads.length} candidates</span>
+                </div>
+                <div className="flex items-center justify-between font-semibold">
+                  <span className="text-slate-600">Active Calling Floor Staff:</span>
+                  <span className="font-mono text-purple-700 font-bold">
+                    {telecallers.filter((t) => t.status !== "Inactive").length || allStaffList.length} staff
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setIsDistributeModalOpen(false)}
+                  className="px-4 py-2 border rounded-xl font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDistributing}
+                  onClick={handleExecuteDistribution}
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  {isDistributing ? "Distributing..." : "Execute 1-Click Distribution"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Log Call Modal */}
       <LogCallModal

@@ -112,6 +112,10 @@ export interface CallRecord {
   fromTime?: string;
   endTime?: string;
   durationFormatted?: string;
+  // Floor Supervisor & Admin Audit
+  auditStatus?: "verified" | "suspicious" | "needs_review";
+  auditNote?: string;
+  auditRating?: number;
 }
 
 export interface FollowUpTask {
@@ -179,6 +183,11 @@ export interface Telecaller {
   admissionsGenerated: number;
   conversionRate: number;
   rank: number;
+  status?: "Active" | "Inactive";
+  punchInTime?: string;
+  punchOutTime?: string;
+  isPunchedIn?: boolean;
+  workingHours?: string;
 }
 
 export interface Course {

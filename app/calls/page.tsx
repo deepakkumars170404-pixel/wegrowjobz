@@ -14,6 +14,10 @@ import {
   ArrowRight,
   Smartphone,
   CheckCircle2,
+  Star,
+  AlertTriangle,
+  X,
+  Sparkles,
 } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
 import { CallRecord, WEGROW_STAFF_MEMBERS } from "@/types";
@@ -21,7 +25,20 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { downloadStyledExcelReport } from "@/lib/excelExport";
 
 export default function CallManagementPage() {
-  const { leads, activeUserRole } = useCRM();
+  const { leads, activeUserRole, auditCallRecord } = useCRM();
+
+  const isSupervisor =
+    activeUserRole === "Owner" ||
+    activeUserRole === "Owner / MD" ||
+    activeUserRole === "Admin" ||
+    activeUserRole.includes("Admin");
+
+  // Supervisor Call Quality Audit Modal State
+  const [auditingCall, setAuditingCall] = useState<any | null>(null);
+  const [auditStatus, setAuditStatus] = useState<"verified" | "suspicious" | "needs_review">("verified");
+  const [auditNote, setAuditNote] = useState<string>("");
+  const [auditRating, setAuditRating] = useState<number>(5);
+  const [isSubmittingAudit, setIsSubmittingAudit] = useState(false);
 
   // Filters for Audit Oversight Desk
   const [ownerStaffFilter, setOwnerStaffFilter] = useState<string>("All");
@@ -530,6 +547,34 @@ export default function CallManagementPage() {
                         )}
                       </span>
 
+                      {/* Short Spoken Duration Warning Badge */}
+                      {attended && parseCallDurationSec(call) > 0 && parseCallDurationSec(call) < 5 && (
+                        <span
+                          className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 shadow-xs"
+                          title="Call duration less than 5 seconds. Supervisor verification recommended."
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>Short Call (&lt;5s)</span>
+                        </span>
+                      )}
+
+                      {/* Supervisor Audit Decision Badge */}
+                      {call.auditStatus && (
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 shadow-xs ${
+                            call.auditStatus === "verified"
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                              : call.auditStatus === "suspicious"
+                              ? "bg-rose-100 text-rose-800 border border-rose-300"
+                              : "bg-purple-100 text-purple-800 border border-purple-300"
+                          }`}
+                        >
+                          {call.auditStatus === "verified" && <span>✅ Verified</span>}
+                          {call.auditStatus === "suspicious" && <span>⚠️ Fake / Suspicious</span>}
+                          {call.auditStatus === "needs_review" && <span>🔍 Needs Coaching</span>}
+                        </span>
+                      )}
+
                       {/* Timeline */}
                       <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-600 bg-white px-2.5 py-1 rounded-md border border-slate-200">
                         <Clock className="w-3 h-3 text-slate-400" />
@@ -544,7 +589,7 @@ export default function CallManagementPage() {
 
                   {/* Bottom: Mindset & Staff Notes + Action Buttons */}
                   <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-200/70 text-[11px] gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {mindsetVal && (
                         <span className="px-2.5 py-0.5 rounded-full bg-[#142B52]/10 text-[#142B52] font-bold">
                           Mindset: {mindsetVal}
@@ -553,6 +598,11 @@ export default function CallManagementPage() {
                       <span className="text-slate-500">
                         Inquiry handled by <strong className="text-slate-700">{call.callerName || "Staff"}</strong>
                       </span>
+                      {call.auditNote && (
+                        <span className="text-purple-700 font-semibold bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                          Supervisor: &quot;{call.auditNote}&quot;
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -561,6 +611,26 @@ export default function CallManagementPage() {
                           &quot;{call.remarks}&quot;
                         </p>
                       )}
+
+                      {/* Supervisor Quality Audit Button */}
+                      {isSupervisor && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuditingCall(call);
+                            const isShort = attended && parseCallDurationSec(call) < 5;
+                            setAuditStatus(call.auditStatus || (isShort ? "suspicious" : "verified"));
+                            setAuditNote(call.auditNote || "");
+                            setAuditRating(call.auditRating || 5);
+                          }}
+                          className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Quality Audit & Verification"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+                          <span>Audit Call</span>
+                        </button>
+                      )}
+
                       <a
                         href={`https://wa.me/91${call.studentPhone.replace(/\D/g, "").slice(-10)}?text=${encodeURIComponent(
                           `Hello ${call.studentName}, greeting from Wegrow Academy.`
@@ -587,6 +657,162 @@ export default function CallManagementPage() {
           </div>
         )}
       </div>
+
+      {/* Supervisor Quality Audit & Verification Modal */}
+      {auditingCall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-purple-700 text-white">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-purple-200" />
+                <h3 className="font-bold text-base">Call Quality Audit & Flagging</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAuditingCall(null)}
+                className="text-purple-200 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">Candidate:</span>
+                  <strong className="text-slate-900">{auditingCall.studentName}</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">Caller:</span>
+                  <strong className="text-slate-800">{auditingCall.callerName}</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">Spoken Duration:</span>
+                  <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    ⏱️ {auditingCall.duration} ({auditingCall.durationSeconds || 0}s)
+                  </span>
+                </div>
+              </div>
+
+              {/* Status Decision Buttons */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1.5">
+                  Supervisor Audit Verdict:
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAuditStatus("verified")}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                      auditStatus === "verified"
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-xs"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="block font-bold">✅ Verified</span>
+                    <span className="text-[10px] text-slate-500">Genuine call</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAuditStatus("suspicious")}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                      auditStatus === "suspicious"
+                        ? "border-rose-600 bg-rose-50 text-rose-900 font-bold shadow-xs"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="block font-bold">⚠️ Fake / Cut</span>
+                    <span className="text-[10px] text-slate-500">Short / fake log</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAuditStatus("needs_review")}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                      auditStatus === "needs_review"
+                        ? "border-purple-600 bg-purple-50 text-purple-900 font-bold shadow-xs"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="block font-bold">🔍 Review</span>
+                    <span className="text-[10px] text-slate-500">Needs coaching</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Rating 1-5 Stars */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Supervisor Call Rating (1 to 5 Stars):
+                </label>
+                <div className="flex items-center gap-1.5 pt-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setAuditRating(star)}
+                      className="p-1 text-lg cursor-pointer transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`w-5 h-5 ${
+                          star <= auditRating
+                            ? "text-amber-400 fill-amber-400"
+                            : "text-slate-300"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  <span className="ml-2 font-bold text-slate-700">{auditRating} / 5 Stars</span>
+                </div>
+              </div>
+
+              {/* Audit Note */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Supervisor Audit Remarks:
+                </label>
+                <textarea
+                  rows={3}
+                  value={auditNote}
+                  onChange={(e) => setAuditNote(e.target.value)}
+                  placeholder="e.g. Call duration only 2 seconds. Telecaller marked as attended without speaking to student."
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-purple-600"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setAuditingCall(null)}
+                  className="px-4 py-2 border rounded-xl font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingAudit}
+                  onClick={async () => {
+                    setIsSubmittingAudit(true);
+                    await auditCallRecord(
+                      auditingCall.leadId,
+                      auditingCall.id || auditingCall.callTime,
+                      auditStatus,
+                      auditNote,
+                      auditRating
+                    );
+                    setIsSubmittingAudit(false);
+                    setAuditingCall(null);
+                  }}
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl font-bold shadow-xs cursor-pointer"
+                >
+                  {isSubmittingAudit ? "Saving..." : "Save Audit Verdict"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

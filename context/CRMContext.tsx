@@ -123,6 +123,26 @@ interface CRMContextType {
   updateUserRole: (id: string, newRole: AppUser["role"]) => void;
   toggleUserStatus: (id: string) => void;
   updateStaffAvatar: (staffName: string, avatarUrl: string) => void;
+
+  // Admin & Floor Supervisor Methods
+  addTelecaller: (callerData: {
+    name: string;
+    phone: string;
+    email: string;
+    dailyTarget?: number;
+    role?: "Senior Telecaller" | "Telecalling Executive" | "Admissions Counsellor";
+  }) => void;
+  toggleTelecallerStatus: (id: string) => void;
+  updateTelecallerTarget: (id: string, targetCalls: number) => void;
+  distributeLeadsBulk: (leadIds: string[], targetCaller: string) => Promise<void>;
+  reassignStaffLeads: (fromCaller: string, toCaller: string) => Promise<void>;
+  auditCallRecord: (
+    leadId: string,
+    callTimestampOrId: string,
+    auditStatus: "verified" | "suspicious" | "needs_review",
+    auditNote?: string,
+    auditRating?: number
+  ) => Promise<void>;
 }
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -1639,6 +1659,190 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // Admin & Floor Supervisor Methods
+  const addTelecaller = (callerData: {
+    name: string;
+    phone: string;
+    email: string;
+    dailyTarget?: number;
+    role?: "Senior Telecaller" | "Telecalling Executive" | "Admissions Counsellor";
+  }) => {
+    const id = "TC-" + (telecallers.length + 1).toString().padStart(3, "0");
+    const newCaller: Telecaller = {
+      id,
+      name: callerData.name,
+      phone: callerData.phone,
+      email: callerData.email,
+      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+      role: callerData.role || "Telecalling Executive",
+      assignedLeads: 0,
+      dailyTarget: callerData.dailyTarget || 50,
+      callsCompleted: 0,
+      connectedCalls: 0,
+      interestedLeads: 0,
+      followUpsCompleted: 0,
+      admissionsGenerated: 0,
+      conversionRate: 0,
+      rank: telecallers.length + 1,
+      status: "Active",
+      isPunchedIn: true,
+      punchInTime: "09:30 AM",
+      workingHours: "0h 0m",
+    };
+    setTelecallers((prev) => [...prev, newCaller]);
+    showToast({
+      type: "success",
+      title: "Telecaller Enrolled",
+      message: `${callerData.name} has been enrolled with a daily target of ${newCaller.dailyTarget} calls.`,
+    });
+  };
+
+  const toggleTelecallerStatus = (id: string) => {
+    setTelecallers((prev) =>
+      prev.map((t) =>
+        t.id === id || t.name.toLowerCase() === id.toLowerCase()
+          ? { ...t, status: t.status === "Active" ? "Inactive" : "Active" }
+          : t
+      )
+    );
+    showToast({
+      type: "info",
+      title: "Telecaller Status Updated",
+      message: "Floor calling status has been updated.",
+    });
+  };
+
+  const updateTelecallerTarget = (id: string, targetCalls: number) => {
+    setTelecallers((prev) =>
+      prev.map((t) =>
+        t.id === id || t.name.toLowerCase() === id.toLowerCase()
+          ? { ...t, dailyTarget: targetCalls }
+          : t
+      )
+    );
+    showToast({
+      type: "success",
+      title: "Target Updated",
+      message: `Daily target set to ${targetCalls} calls.`,
+    });
+  };
+
+  const distributeLeadsBulk = async (leadIds: string[], targetCaller: string) => {
+    if (leadIds.length === 0 || !targetCaller) return;
+    setLeads((prev) =>
+      prev.map((l) =>
+        leadIds.includes(l.id) ? { ...l, assignedCaller: targetCaller } : l
+      )
+    );
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase
+          .from("jobz_leads")
+          .update({ assigned_caller: targetCaller })
+          .in("id", leadIds);
+      } catch (err) {
+        console.warn("Supabase lead distribution sync error:", err);
+      }
+    }
+    showToast({
+      type: "success",
+      title: "Leads Distributed",
+      message: `${leadIds.length} candidate leads assigned to ${targetCaller}.`,
+    });
+  };
+
+  const reassignStaffLeads = async (fromCaller: string, toCaller: string) => {
+    if (!fromCaller || !toCaller || fromCaller.toLowerCase() === toCaller.toLowerCase()) return;
+    const matchingIds = leads
+      .filter((l) => (l.assignedCaller || "").toLowerCase() === fromCaller.toLowerCase())
+      .map((l) => l.id);
+
+    if (matchingIds.length === 0) {
+      showToast({
+        type: "warning",
+        title: "No Leads Found",
+        message: `No active leads currently assigned to ${fromCaller}.`,
+      });
+      return;
+    }
+
+    setLeads((prev) =>
+      prev.map((l) =>
+        matchingIds.includes(l.id) ? { ...l, assignedCaller: toCaller } : l
+      )
+    );
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase
+          .from("jobz_leads")
+          .update({ assigned_caller: toCaller })
+          .in("id", matchingIds);
+      } catch (err) {
+        console.warn("Supabase staff reassign sync error:", err);
+      }
+    }
+
+    showToast({
+      type: "success",
+      title: "Staff Leads Reassigned",
+      message: `Transferred ${matchingIds.length} candidate leads from ${fromCaller} to ${toCaller}.`,
+    });
+  };
+
+  const auditCallRecord = async (
+    leadId: string,
+    callTimestampOrId: string,
+    auditStatus: "verified" | "suspicious" | "needs_review",
+    auditNote?: string,
+    auditRating?: number
+  ) => {
+    setLeads((prev) =>
+      prev.map((l) => {
+        if (l.id !== leadId) return l;
+        const updatedHistory = (l.callHistory || []).map((c) => {
+          if (c.id === callTimestampOrId || c.callTime === callTimestampOrId || c.callDate === callTimestampOrId) {
+            return {
+              ...c,
+              auditStatus,
+              auditNote: auditNote || c.auditNote,
+              auditRating: typeof auditRating === "number" ? auditRating : c.auditRating,
+            };
+          }
+          return c;
+        });
+        return { ...l, callHistory: updatedHistory };
+      })
+    );
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase
+          .from("jobz_calls")
+          .update({
+            audit_status: auditStatus,
+            audit_note: auditNote || null,
+            audit_rating: auditRating || null,
+          })
+          .match({ lead_id: leadId });
+      } catch (err) {
+        console.warn("Supabase call audit sync error:", err);
+      }
+    }
+
+    showToast({
+      type: "info",
+      title: "Call Audit Logged",
+      message: `Call marked as ${
+        auditStatus === "verified"
+          ? "Verified ✅"
+          : auditStatus === "suspicious"
+          ? "Suspicious ⚠️"
+          : "Needs Review 🔍"
+      }.`,
+    });
+  };
+
   return (
     <CRMContext.Provider
       value={{
@@ -1690,6 +1894,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateUserRole,
         toggleUserStatus,
         updateStaffAvatar,
+        addTelecaller,
+        toggleTelecallerStatus,
+        updateTelecallerTarget,
+        distributeLeadsBulk,
+        reassignStaffLeads,
+        auditCallRecord,
       }}
     >
       {children}

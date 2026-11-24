@@ -30,6 +30,7 @@ import {
   DEFAULT_DISPOSITION_OUTCOMES,
   DEFAULT_POST_CALL_FIELDS,
 } from "@/utils/formConfigStorage";
+import { ALL_JOB_ROLES } from "@/data/job-domains";
 
 export default function SettingsPage() {
   const { showToast } = useCRM();
@@ -37,10 +38,30 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<
     | "postcall_form"
     | "company"
+    | "job_domains"
     | "pipeline"
     | "calling"
     | "notifications"
   >("postcall_form");
+
+  // Job Roles & Domains State
+  const [jobRolesList, setJobRolesList] = useState<string[]>(ALL_JOB_ROLES);
+  const [newJobRoleName, setNewJobRoleName] = useState("");
+  const [jobRoleSearch, setJobRoleSearch] = useState("");
+  const [isAddingJobRole, setIsAddingJobRole] = useState(false);
+
+  // Custom Pipeline Stages State
+  const [pipelineStages, setPipelineStages] = useState([
+    { name: "New Enquiry / Lead", desc: "Fresh candidate uploaded or received from job boards", color: "bg-blue-50 text-blue-700 border-blue-200" },
+    { name: "Contacted / Telecalled", desc: "First screening call connected with candidate", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+    { name: "Interested", desc: "Candidate open for job openings and willing to attend interview", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    { name: "Shortlisted", desc: "Resume verified and sent to corporate client hiring manager", color: "bg-purple-50 text-purple-700 border-purple-200" },
+    { name: "Interview Scheduled", desc: "Interview date & time locked with company", color: "bg-amber-50 text-amber-700 border-amber-200" },
+    { name: "Placed / Selected 🎉", desc: "Offer letter issued and candidate onboarded", color: "bg-green-50 text-green-700 border-green-200" },
+  ]);
+  const [isAddingStage, setIsAddingStage] = useState(false);
+  const [newStageName, setNewStageName] = useState("");
+  const [newStageDesc, setNewStageDesc] = useState("");
 
   // Post-Call Form Configuration State
   const [config, setConfig] = useState<PostCallFormConfig>({
@@ -79,7 +100,61 @@ export default function SettingsPage() {
   useEffect(() => {
     const loaded = FormConfigService.getConfig();
     setConfig(loaded);
+    try {
+      const storedDomains = localStorage.getItem("wegrow_custom_job_domains");
+      if (storedDomains) setJobRolesList(JSON.parse(storedDomains));
+      const storedStages = localStorage.getItem("wegrow_custom_pipeline_stages");
+      if (storedStages) setPipelineStages(JSON.parse(storedStages));
+    } catch {}
   }, []);
+
+  const handleAddJobRole = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newJobRoleName.trim()) return;
+    const trimmed = newJobRoleName.trim();
+    if (jobRolesList.includes(trimmed)) {
+      showToast({ type: "warning", title: "Role Exists", message: "This job role is already present." });
+      return;
+    }
+    const updated = [trimmed, ...jobRolesList];
+    setJobRolesList(updated);
+    try {
+      localStorage.setItem("wegrow_custom_job_domains", JSON.stringify(updated));
+    } catch {}
+    setNewJobRoleName("");
+    setIsAddingJobRole(false);
+    showToast({ type: "success", title: "Job Role Created", message: `Added "${trimmed}" to candidate domains.` });
+  };
+
+  const handleDeleteJobRole = (role: string) => {
+    const updated = jobRolesList.filter((r) => r !== role);
+    setJobRolesList(updated);
+    try {
+      localStorage.setItem("wegrow_custom_job_domains", JSON.stringify(updated));
+    } catch {}
+    showToast({ type: "info", title: "Job Role Removed", message: `Removed "${role}".` });
+  };
+
+  const handleAddPipelineStage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStageName.trim()) return;
+    const updated = [
+      ...pipelineStages,
+      {
+        name: newStageName.trim(),
+        desc: newStageDesc.trim() || "Custom funnel stage",
+        color: "bg-purple-50 text-purple-700 border-purple-200",
+      },
+    ];
+    setPipelineStages(updated);
+    try {
+      localStorage.setItem("wegrow_custom_pipeline_stages", JSON.stringify(updated));
+    } catch {}
+    setNewStageName("");
+    setNewStageDesc("");
+    setIsAddingStage(false);
+    showToast({ type: "success", title: "Stage Created", message: `Added "${newStageName}" to recruitment pipeline.` });
+  };
 
   const handleSaveConfig = () => {
     FormConfigService.saveConfig(config);
@@ -242,6 +317,7 @@ export default function SettingsPage() {
           {[
             { id: "postcall_form", label: "Post-Call Form Builder", icon: SlidersHorizontal, badge: "Custom Form" },
             { id: "company", label: "WeGrow Jobz Profile", icon: Building2 },
+            { id: "job_domains", label: "Job Roles & Domains", icon: Briefcase, badge: "Roles" },
             { id: "pipeline", label: "Placement Pipeline Stages", icon: Layers },
             { id: "calling", label: "Telecalling Parameters", icon: PhoneCall },
             { id: "notifications", label: "Alerts & Notifications", icon: Bell },
@@ -674,28 +750,176 @@ export default function SettingsPage() {
           )}
 
           {/* ========================================================
+              TAB: JOB ROLES & DOMAINS
+          ======================================================== */}
+          {activeTab === "job_domains" && (
+            <div className="space-y-6 text-xs">
+              <div className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                    <Briefcase className="w-5 h-5 text-purple-600" />
+                    <span>Candidate Job Roles & Career Domains</span>
+                    <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full font-bold">
+                      {jobRolesList.length} Active Domains
+                    </span>
+                  </h3>
+                  <p className="text-slate-500 text-[11px] mt-0.5">
+                    Define and customize job positions available for student placement screening and telecalling routing.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAddingJobRole(!isAddingJobRole)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer self-start sm:self-auto"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Job Role</span>
+                </button>
+              </div>
+
+              {/* Add Job Role Form */}
+              {isAddingJobRole && (
+                <form
+                  onSubmit={handleAddJobRole}
+                  className="p-4 bg-purple-50/60 rounded-xl border border-purple-200 space-y-3 animate-in fade-in"
+                >
+                  <h4 className="font-bold text-xs text-purple-900">Create New Job Position</h4>
+                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. AI & Generative AI Engineer, Cloud Architect, Graphic Designer"
+                      value={newJobRoleName}
+                      onChange={(e) => setNewJobRoleName(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-white border border-purple-300 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-purple-600"
+                    />
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shrink-0 cursor-pointer"
+                      >
+                        Add to CRM
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingJobRole(false)}
+                        className="px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold shrink-0 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+
+              {/* Search Bar */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Filter job domains (e.g. Developer, Data, Sales, Designer)..."
+                  value={jobRoleSearch}
+                  onChange={(e) => setJobRoleSearch(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              {/* Domains Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-[480px] overflow-y-auto pr-1">
+                {jobRolesList
+                  .filter((role) => role.toLowerCase().includes(jobRoleSearch.toLowerCase()))
+                  .map((role, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50/80 transition-all shadow-xs group"
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                        <span className="font-semibold text-slate-800 text-xs truncate" title={role}>
+                          {role}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteJobRole(role)}
+                        className="p-1 text-slate-400 hover:text-rose-600 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer shrink-0"
+                        title="Delete Role"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================
               TAB 3: PIPELINE STAGES
           ======================================================== */}
           {activeTab === "pipeline" && (
             <div className="space-y-4 text-xs">
-              <div className="pb-3 border-b border-slate-100">
-                <h3 className="font-bold text-base text-slate-900">
-                  Recruitment & Placement Funnel Stages
-                </h3>
-                <p className="text-slate-500 text-[11px]">
-                  Lifecycle stages for candidate tracking in WeGrow Jobz CRM
-                </p>
+              <div className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">
+                    Recruitment & Placement Funnel Stages
+                  </h3>
+                  <p className="text-slate-500 text-[11px]">
+                    Lifecycle stages for candidate tracking in WeGrow Jobz CRM
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingStage(!isAddingStage)}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Funnel Stage</span>
+                </button>
               </div>
 
+              {isAddingStage && (
+                <form
+                  onSubmit={handleAddPipelineStage}
+                  className="p-4 bg-blue-50/60 rounded-xl border border-blue-200 space-y-3 animate-in fade-in"
+                >
+                  <h4 className="font-bold text-xs text-blue-900">Create New Pipeline Stage</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Stage Name (e.g. HR Round Cleared)"
+                      value={newStageName}
+                      onChange={(e) => setNewStageName(e.target.value)}
+                      className="px-3.5 py-2 bg-white border border-blue-300 rounded-xl text-xs font-medium outline-none"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Description (optional)"
+                      value={newStageDesc}
+                      onChange={(e) => setNewStageDesc(e.target.value)}
+                      className="px-3.5 py-2 bg-white border border-blue-300 rounded-xl text-xs font-medium outline-none"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingStage(false)}
+                      className="px-3 py-1 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1 bg-blue-600 text-white rounded-xl text-xs font-bold"
+                    >
+                      Save Stage
+                    </button>
+                  </div>
+                </form>
+              )}
+
               <div className="space-y-2">
-                {[
-                  { name: "New Enquiry / Lead", desc: "Fresh candidate uploaded or received from job boards", color: "bg-blue-50 text-blue-700 border-blue-200" },
-                  { name: "Contacted / Telecalled", desc: "First screening call connected with candidate", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-                  { name: "Interested", desc: "Candidate open for job openings and willing to attend interview", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-                  { name: "Shortlisted", desc: "Resume verified and sent to corporate client hiring manager", color: "bg-purple-50 text-purple-700 border-purple-200" },
-                  { name: "Interview Scheduled", desc: "Interview date & time locked with company", color: "bg-amber-50 text-amber-700 border-amber-200" },
-                  { name: "Placed / Selected 🎉", desc: "Offer letter issued and candidate onboarded", color: "bg-green-50 text-green-700 border-green-200" },
-                ].map((stg, i) => (
+                {pipelineStages.map((stg, i) => (
                   <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white shadow-xs">
                     <div>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${stg.color}`}>

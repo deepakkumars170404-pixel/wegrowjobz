@@ -53,9 +53,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     (f) => f.status === "Today" || f.status === "Overdue" || (f.status as string) === "Pending"
   ).length;
 
-  const isOwner = activeUserRole === "Owner" || activeUserRole === "Owner / MD" || activeUserRole === "Admin";
+  const isOwner = activeUserRole === "Owner" || activeUserRole === "Owner / MD";
+  const isAdmin = activeUserRole === "Admin";
+  const isManagement = isOwner || isAdmin;
 
-  const navItems = isOwner
+  const navItems = isManagement
     ? [
         {
           title: "Dashboard",
@@ -83,6 +85,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: CalendarClock,
           badge: pendingFollowUpCount > 0 ? pendingFollowUpCount : undefined,
           badgeColor: "bg-amber-500",
+        },
+        {
+          title: "Staff & Attendance",
+          href: "/team",
+          icon: UserCheck,
         },
         {
           title: "Performance Reports",
@@ -162,7 +169,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* 2 Roles Switcher: Owner vs Telecaller */}
+        {/* 3 Roles Switcher: Owner vs Admin vs Telecaller */}
         {!collapsed && (
           <div className="px-3 pt-3 pb-2">
             <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 shadow-xs">
@@ -171,36 +178,57 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <UserCheck className="w-3.5 h-3.5 text-blue-600" />
                   Role View
                 </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                  {isOwner ? "Owner" : "Telecaller"}
+                <span className={cn(
+                  "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                  isOwner ? "bg-blue-100 text-blue-700" :
+                  isAdmin ? "bg-purple-100 text-purple-700" :
+                  "bg-emerald-100 text-emerald-700"
+                )}>
+                  {isOwner ? "Owner" : isAdmin ? "Admin" : "Telecaller"}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-1 bg-slate-200/60 p-1 rounded-lg text-center">
+              <div className="grid grid-cols-3 gap-1 bg-slate-200/60 p-1 rounded-lg text-center">
                 <button
                   type="button"
                   onClick={() => setActiveUserRole("Owner")}
                   className={cn(
-                    "flex items-center justify-center gap-1 py-1 text-[11px] font-semibold rounded-md transition-all",
+                    "flex items-center justify-center gap-1 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer",
                     isOwner
                       ? "bg-white text-blue-900 shadow-xs font-bold"
                       : "text-slate-600 hover:text-slate-900"
                   )}
+                  title="Executive Owner & Management View"
                 >
-                  <Shield className="w-3 h-3 text-blue-600" />
-                  Owner
+                  <Shield className="w-3 h-3 text-blue-600 shrink-0" />
+                  <span>Owner</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveUserRole("Admin")}
+                  className={cn(
+                    "flex items-center justify-center gap-1 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer",
+                    isAdmin
+                      ? "bg-white text-purple-900 shadow-xs font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                  title="Supervisor Admin Floor & Allocation View"
+                >
+                  <UserCheck className="w-3 h-3 text-purple-600 shrink-0" />
+                  <span>Admin</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveUserRole("Telecaller")}
                   className={cn(
-                    "flex items-center justify-center gap-1 py-1 text-[11px] font-semibold rounded-md transition-all",
-                    !isOwner
+                    "flex items-center justify-center gap-1 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer",
+                    !isManagement
                       ? "bg-white text-emerald-800 shadow-xs font-bold"
                       : "text-slate-600 hover:text-slate-900"
                   )}
+                  title="Calling Floor Agent Desk"
                 >
-                  <Headphones className="w-3 h-3 text-emerald-600" />
-                  Telecaller
+                  <Headphones className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <span>Caller</span>
                 </button>
               </div>
             </div>
