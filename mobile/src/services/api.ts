@@ -875,7 +875,9 @@ export const ApiService = {
           clearTimeout(timeoutId);
           if (res.ok) {
             const data = await res.json();
-            if (data && Array.isArray(data.staffNames)) {
+            if (data && Array.isArray(data.staffNames) && data.staffNames.length > 0) {
+              // Server list is authoritative: clear stale deleted members
+              staffSet.clear();
               data.staffNames.forEach((n: string) => {
                 if (n && typeof n === "string") staffSet.add(n.trim());
               });

@@ -149,6 +149,7 @@ interface CRMContextType {
   }) => void;
   toggleTelecallerStatus: (id: string) => void;
   updateTelecallerTarget: (id: string, targetCalls: number) => void;
+  deleteTelecaller: (idOrName: string) => void;
   distributeLeadsBulk: (leadIds: string[], targetCaller: string) => Promise<void>;
   reassignStaffLeads: (fromCaller: string, toCaller: string) => Promise<void>;
   auditCallRecord: (
@@ -1830,6 +1831,23 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const deleteTelecaller = (idOrName: string) => {
+    setTelecallers((prev) =>
+      prev.filter((t) => t.id !== idOrName && t.name.toLowerCase() !== idOrName.toLowerCase())
+    );
+    setUsers((prev) =>
+      prev.filter((u) => u.id !== idOrName && u.name.toLowerCase() !== idOrName.toLowerCase())
+    );
+    fetch(`/api/staff?id=${encodeURIComponent(idOrName)}&name=${encodeURIComponent(idOrName)}`, {
+      method: "DELETE",
+    }).catch(() => {});
+    showToast({
+      type: "success",
+      title: "Telecaller Removed",
+      message: "Telecaller account has been removed successfully.",
+    });
+  };
+
   const distributeLeadsBulk = async (leadIds: string[], targetCaller: string) => {
     if (leadIds.length === 0 || !targetCaller) return;
     setLeads((prev) =>
@@ -2419,6 +2437,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addTelecaller,
         toggleTelecallerStatus,
         updateTelecallerTarget,
+        deleteTelecaller,
         distributeLeadsBulk,
         reassignStaffLeads,
         auditCallRecord,

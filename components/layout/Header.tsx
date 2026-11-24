@@ -217,11 +217,11 @@ export const Header: React.FC<HeaderProps> = ({
           <span>Add Candidate</span>
         </button>
 
-        {/* My Profile Button (Zoho CRM Style) */}
+        {/* My Profile Button */}
         <button
           onClick={() => setIsProfileModalOpen(true)}
           className="flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl transition-all shadow-2xs group cursor-pointer"
-          title="My Profile, Password & Settings (Zoho CRM Style)"
+          title="My Profile, Password & Settings"
         >
           <div className="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 overflow-hidden flex items-center justify-center font-bold text-blue-700 text-xs shrink-0">
             {currentUser?.avatar ? (
@@ -273,7 +273,7 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <User className="w-3.5 h-3.5 text-blue-600" />
-                  <span>My Profile & Settings (Zoho CRM)</span>
+                  <span>My Profile & Settings</span>
                 </div>
                 <Settings className="w-3 h-3 text-blue-500" />
               </button>
@@ -384,7 +384,7 @@ export const Header: React.FC<HeaderProps> = ({
         }}
       />
 
-      {/* Zoho CRM Style My Profile & Settings Modal */}
+      {/* My Profile & Settings Modal */}
       <UserProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}

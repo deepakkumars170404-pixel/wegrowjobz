@@ -428,7 +428,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <div className="p-3.5 bg-purple-50/70 border border-purple-200/80 rounded-2xl flex items-start gap-3">
                 <Shield className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-bold text-purple-950 text-xs">Zoho CRM Style Confidential Password</h4>
+                  <h4 className="font-bold text-purple-950 text-xs">Staff Confidential Password & Security</h4>
                   <p className="text-[11px] text-purple-800/80 mt-0.5">
                     You can set your own secret PIN / password anytime. Neither Admin nor Owner will see or alter your confidential password.
                   </p>

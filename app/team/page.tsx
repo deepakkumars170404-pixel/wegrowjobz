@@ -25,6 +25,7 @@ import {
   Snowflake,
   Zap,
   Lock,
+  Trash2,
 } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
 import { Telecaller } from "@/types";
@@ -41,6 +42,7 @@ export default function TeamPerformancePage() {
     activeUserRole,
     triggerUserPasswordReset,
     toggleUserFreeze,
+    deleteTelecaller,
   } = useCRM();
 
   const [activeTab, setActiveTab] = useState<"floor" | "attendance" | "leaderboard">("floor");
@@ -487,6 +489,20 @@ export default function TeamPerformancePage() {
                             className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition-colors cursor-pointer"
                           >
                             Transfer
+                          </button>
+
+                          {/* Delete / Remove Telecaller (Owner/Admin) */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Are you sure you want to delete telecaller "${caller.name}"? This will remove them from the app and website.`)) {
+                                deleteTelecaller(caller.id);
+                              }
+                            }}
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition-colors cursor-pointer"
+                            title="Delete / Remove Telecaller"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
