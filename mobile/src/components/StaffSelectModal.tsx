@@ -23,14 +23,6 @@ interface StaffSelectModalProps {
   onCancel?: () => void;
 }
 
-const STAFF_PASSWORDS: Record<string, string> = {
-  Muthumeena: "1234",
-  "Gopinath (HR)": "1234",
-  Vijayakumar: "1234",
-  Thavabalan: "1234",
-  Deepak: "1704",
-};
-
 export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
   visible,
   currentStaff,
@@ -39,14 +31,18 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
   onCancel,
 }) => {
   const [selected, setSelected] = useState<StaffMember>(currentStaff || "Muthumeena");
-  const [pin, setPin] = useState("1234");
+  const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState(false);
   const [avatarsMap, setAvatarsMap] = useState<Record<string, string>>({});
+  const [passwordsMap, setPasswordsMap] = useState<Record<string, string>>({});
   const [photoUrlInput, setPhotoUrlInput] = useState("");
   const [isPhotoEditOpen, setIsPhotoEditOpen] = useState(false);
 
   useEffect(() => {
     StorageService.getStaffAvatars().then(setAvatarsMap);
+    StorageService.getStaffPasswords().then(setPasswordsMap);
+    setPin("");
+    setPinError(false);
   }, [visible]);
 
   const handleSavePhoto = async () => {
@@ -59,8 +55,9 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
   };
 
   const handleLogin = () => {
-    const expected = STAFF_PASSWORDS[selected] || "1234";
-    if (pin.trim() === expected || pin.trim() === "1234" || pin.trim() === "1704") {
+    const selectedName = selected as string;
+    const expected = passwordsMap[selectedName] || (selectedName === "Thavabalan" ? "7708" : selectedName === "Muthumeena" ? "1234" : "5678");
+    if (pin.trim() === expected || pin.trim() === "1704") {
       setPinError(false);
       onSelectAndPunchIn(selected);
     } else {

@@ -11,6 +11,7 @@ const KEYS = {
   ATTENDANCE: "@wegrow_attendance",
   APP_MODE: "@wegrow_app_mode",
   STAFF_AVATARS: "@wegrow_staff_avatars",
+  STAFF_PASSWORDS: "@wegrow_staff_passwords",
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -368,6 +369,30 @@ export const StorageService = {
       const avatars = await StorageService.getStaffAvatars();
       avatars[staffName] = photoUrl;
       await AsyncStorage.setItem(KEYS.STAFF_AVATARS, JSON.stringify(avatars));
+    } catch {}
+  },
+
+  // Staff Personal Login Passwords / PINs
+  async getStaffPasswords(): Promise<Record<string, string>> {
+    const defaults: Record<string, string> = {
+      Muthumeena: "1234",
+      "Gopinath (HR)": "5678",
+      Vijayakumar: "5678",
+      Thavabalan: "7708",
+      Deepak: "1704",
+    };
+    try {
+      const data = await AsyncStorage.getItem(KEYS.STAFF_PASSWORDS);
+      if (data) return { ...defaults, ...JSON.parse(data) };
+    } catch {}
+    return defaults;
+  },
+
+  async saveStaffPassword(staffName: string, pass: string): Promise<void> {
+    try {
+      const passwords = await StorageService.getStaffPasswords();
+      passwords[staffName] = pass.trim();
+      await AsyncStorage.setItem(KEYS.STAFF_PASSWORDS, JSON.stringify(passwords));
     } catch {}
   },
 };

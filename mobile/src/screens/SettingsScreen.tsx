@@ -9,7 +9,7 @@ import {
   Alert,
   Platform,
 } from "react-native";
-import { User, ShieldAlert, Check, CheckCircle2 } from "lucide-react-native";
+import { User, ShieldAlert, Check, CheckCircle2, Lock, KeyRound } from "lucide-react-native";
 import { THEME } from "../constants/theme";
 import { StorageService } from "../services/storage";
 import { ApiService } from "../services/api";
@@ -17,16 +17,22 @@ import { AppSettings, WEGROW_STAFF_MEMBERS } from "../types";
 
 export const SettingsScreen: React.FC = () => {
   const [callerName, setCallerName] = useState("Muthumeena");
+  const [currentPin, setCurrentPin] = useState("1234");
   const [localRecording, setLocalRecording] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     (async () => {
       const s = await StorageService.getSettings();
+      const staff = s.callerName || "Muthumeena";
       if (s.callerName) setCallerName(s.callerName);
       if (s.localRecordingEnabled !== undefined) setLocalRecording(s.localRecordingEnabled);
       const pending = await StorageService.getPendingCalls();
       setPendingCount(pending.length);
+      const passwords = await StorageService.getStaffPasswords();
+      if (passwords[staff]) {
+        setCurrentPin(passwords[staff]);
+      }
     })();
   }, []);
 
@@ -42,7 +48,10 @@ export const SettingsScreen: React.FC = () => {
       localRecordingEnabled: localRecording,
     };
     await StorageService.saveSettings(updated);
-    Alert.alert("Saved ✓", "WeGrow Jobz settings updated successfully!");
+    if (currentPin.trim()) {
+      await StorageService.saveStaffPassword(callerName.trim(), currentPin.trim());
+    }
+    Alert.alert("Saved ✓", "WeGrow Jobz settings & staff password updated successfully!");
   };
 
   const handleSyncPending = async () => {
@@ -113,6 +122,25 @@ export const SettingsScreen: React.FC = () => {
         />
         <Text style={styles.helpText}>
           This staff name will be automatically tagged on all call logs and follow-up activities in Supabase CRM.
+        </Text>
+      </View>
+
+      {/* Staff Personal Password / PIN */}
+      <View style={styles.card}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+          <KeyRound size={15} color="#2563EB" />
+          <Text style={styles.label}>LOGIN PASSWORD / PIN ({callerName.toUpperCase()})</Text>
+        </View>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. 1234 or custom password"
+          placeholderTextColor={THEME.colors.textMuted}
+          value={currentPin}
+          onChangeText={setCurrentPin}
+          secureTextEntry={false}
+        />
+        <Text style={styles.helpText}>
+          Personal PIN required when logging in or punching in on this device. (Default: 1234).
         </Text>
       </View>
 
