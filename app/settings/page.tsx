@@ -24,8 +24,14 @@ import {
   KeyRound,
   Lock,
   ShieldAlert,
+  EyeOff,
+  UserCheck,
+  Crown,
+  Key,
+  RefreshCw,
 } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
+import { AppUser } from "@/types";
 import {
   FormConfigService,
   PostCallFormConfig,
@@ -37,7 +43,7 @@ import {
 import { ALL_JOB_ROLES } from "@/data/job-domains";
 
 export default function SettingsPage() {
-  const { showToast, updateSecurityPin } = useCRM();
+  const { showToast, users, currentUser, updateUserPassword, activeUserRole } = useCRM();
 
   const [activeTab, setActiveTab] = useState<
     | "postcall_form"
@@ -49,11 +55,23 @@ export default function SettingsPage() {
     | "notifications"
   >("postcall_form");
 
-  // Security Access PIN State
-  const [oldPinInput, setOldPinInput] = useState("");
-  const [newPinInput, setNewPinInput] = useState("");
-  const [confirmPinInput, setConfirmPinInput] = useState("");
-  const [pinError, setPinError] = useState("");
+  // Personal Password Change State
+  const [myOldPassword, setMyOldPassword] = useState("");
+  const [myNewPassword, setMyNewPassword] = useState("");
+  const [myConfirmPassword, setMyConfirmPassword] = useState("");
+  const [myPasswordError, setMyPasswordError] = useState("");
+  const [showMyOld, setShowMyOld] = useState(false);
+  const [showMyNew, setShowMyNew] = useState(false);
+
+  // Staff Password Management State (Owner & Admin)
+  const [selectedStaffForPassword, setSelectedStaffForPassword] = useState<AppUser | null>(null);
+  const [staffNewPassword, setStaffNewPassword] = useState("");
+  const [staffPasswordError, setStaffPasswordError] = useState("");
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
+
+  const toggleRevealPassword = (userId: string) => {
+    setRevealedPasswords((prev) => ({ ...prev, [userId]: !prev[userId] }));
+  };
 
   // Job Roles & Domains State
   const [jobRolesList, setJobRolesList] = useState<string[]>(ALL_JOB_ROLES);
@@ -167,28 +185,54 @@ export default function SettingsPage() {
     showToast({ type: "success", title: "Stage Created", message: `Added "${newStageName}" to recruitment pipeline.` });
   };
 
-  const handleChangePin = (e: React.FormEvent) => {
+  const handleUpdateMyPassword = (e: React.FormEvent) => {
     e.preventDefault();
-    setPinError("");
+    setMyPasswordError("");
 
-    if (newPinInput !== confirmPinInput) {
-      setPinError("New PIN and Confirm PIN do not match.");
+    if (!myNewPassword.trim()) {
+      setMyPasswordError("New password cannot be empty.");
       return;
     }
 
-    if (!/^\d{4}$/.test(newPinInput)) {
-      setPinError("New PIN must be exactly 4 numeric digits.");
+    if (myNewPassword !== myConfirmPassword) {
+      setMyPasswordError("New password and confirm password do not match.");
       return;
     }
 
-    const res = updateSecurityPin(oldPinInput, newPinInput);
+    if (myNewPassword.trim().length < 3) {
+      setMyPasswordError("Password must be at least 3 characters or digits.");
+      return;
+    }
+
+    const currentId = currentUser?.id || "usr-thavabalan";
+    const res = updateUserPassword(currentId, myNewPassword, myOldPassword);
     if (!res.success) {
-      setPinError(res.error || "Failed to update PIN. Please verify your current PIN.");
+      setMyPasswordError(res.error || "Failed to update password. Please check your current password.");
     } else {
-      setOldPinInput("");
-      setNewPinInput("");
-      setConfirmPinInput("");
-      setPinError("");
+      setMyOldPassword("");
+      setMyNewPassword("");
+      setMyConfirmPassword("");
+      setMyPasswordError("");
+    }
+  };
+
+  const handleUpdateStaffPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStaffForPassword) return;
+    setStaffPasswordError("");
+
+    if (!staffNewPassword.trim() || staffNewPassword.trim().length < 3) {
+      setStaffPasswordError("Password must be at least 3 characters or digits.");
+      return;
+    }
+
+    const res = updateUserPassword(selectedStaffForPassword.id, staffNewPassword);
+    if (!res.success) {
+      setStaffPasswordError(res.error || "Failed to update staff password.");
+    } else {
+      setSelectedStaffForPassword(null);
+      setStaffNewPassword("");
+      setStaffPasswordError("");
     }
   };
 
@@ -356,7 +400,7 @@ export default function SettingsPage() {
             { id: "job_domains", label: "Job Roles & Domains", icon: Briefcase, badge: "Roles" },
             { id: "pipeline", label: "Placement Pipeline Stages", icon: Layers },
             { id: "calling", label: "Telecalling Parameters", icon: PhoneCall },
-            { id: "security", label: "Security & Access PIN", icon: KeyRound, badge: "PIN" },
+            { id: "security", label: "Staff Passwords & Security", icon: KeyRound, badge: "Passwords" },
             { id: "notifications", label: "Alerts & Notifications", icon: Bell },
           ].map((item) => {
             const Icon = item.icon;
@@ -1014,7 +1058,7 @@ export default function SettingsPage() {
           )}
 
           {/* ========================================================
-              TAB: SECURITY ACCESS PIN
+              TAB: STAFF PASSWORDS & SECURITY ACCESS
           ======================================================== */}
           {activeTab === "security" && (
             <div className="space-y-6 text-xs">
@@ -1022,102 +1066,279 @@ export default function SettingsPage() {
                 <div>
                   <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
                     <KeyRound className="w-5 h-5 text-purple-600" />
-                    <span>Executive Security & 4-Digit Access PIN</span>
+                    <span>Staff Passwords & Access Security</span>
                   </h3>
                   <p className="text-slate-500 text-[11px] mt-0.5">
-                    Protect Owner and Admin management controls from unauthorized telecaller access.
+                    Individual login passwords for Owner, Supervisors, and all Telecalling Staff.
                   </p>
                 </div>
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 self-start sm:self-auto">
                   <Shield className="w-3.5 h-3.5 text-purple-600" />
-                  <span>PIN Protection Active</span>
+                  <span>Individual Passwords Active</span>
                 </span>
               </div>
 
-              {/* Security PIN Change Form Card */}
-              <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-5 sm:p-6 space-y-5">
-                <div className="flex items-start gap-3 p-3.5 bg-purple-50/70 border border-purple-200 rounded-xl">
-                  <Shield className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-bold text-xs text-purple-900">How PIN Protection Works</h4>
-                    <p className="text-[11px] text-purple-800 leading-relaxed mt-0.5">
-                      Telecallers only have access to the calling floor desk. When anyone clicks on the <strong>Owner</strong> or <strong>Admin</strong> button in the sidebar, this 4-digit PIN is strictly required to unlock management powers.
-                    </p>
+              {/* 1. Change My Password Card */}
+              <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-5 sm:p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center font-bold text-blue-700 text-sm overflow-hidden shrink-0">
+                      {currentUser?.avatar ? (
+                        <img src={currentUser.avatar} alt={currentUser.name} className="w-full h-full object-cover" />
+                      ) : (
+                        (currentUser?.name || "ME").slice(0, 2).toUpperCase()
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        Change My Password ({currentUser?.name || "Current User"})
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Logged in as: <strong className="text-slate-700">{currentUser?.role || "Staff"}</strong> • {currentUser?.email || "No email"}
+                      </p>
+                    </div>
                   </div>
+                  <span className="text-[11px] font-semibold text-slate-500 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                    Self-Service Password
+                  </span>
                 </div>
 
-                <form onSubmit={handleChangePin} className="space-y-4 max-w-md">
+                <form onSubmit={handleUpdateMyPassword} className="space-y-4 max-w-lg">
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
-                      Current 4-Digit Security PIN: <span className="text-rose-500">*</span>
+                      Current Password: <span className="text-rose-500">*</span>
                     </label>
-                    <input
-                      type="password"
-                      maxLength={4}
-                      required
-                      placeholder="Enter existing PIN (default: 7708)"
-                      value={oldPinInput}
-                      onChange={(e) => setOldPinInput(e.target.value.replace(/\D/g, ""))}
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-mono tracking-widest outline-none focus:ring-2 focus:ring-purple-600"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showMyOld ? "text" : "password"}
+                        required
+                        placeholder="Enter your current password"
+                        value={myOldPassword}
+                        onChange={(e) => setMyOldPassword(e.target.value)}
+                        className="w-full pl-3 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-purple-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowMyOld(!showMyOld)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showMyOld ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block font-bold text-slate-700 mb-1">
-                        New 4-Digit PIN: <span className="text-rose-500">*</span>
+                        New Preferred Password: <span className="text-rose-500">*</span>
                       </label>
-                      <input
-                        type="password"
-                        maxLength={4}
-                        required
-                        placeholder="e.g. 7708"
-                        value={newPinInput}
-                        onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, ""))}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-mono tracking-widest outline-none focus:ring-2 focus:ring-purple-600"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showMyNew ? "text" : "password"}
+                          required
+                          placeholder="e.g. 7708 or custom text"
+                          value={myNewPassword}
+                          onChange={(e) => setMyNewPassword(e.target.value)}
+                          className="w-full pl-3 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-purple-600"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowMyNew(!showMyNew)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showMyNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
 
                     <div>
                       <label className="block font-bold text-slate-700 mb-1">
-                        Confirm New PIN: <span className="text-rose-500">*</span>
+                        Confirm New Password: <span className="text-rose-500">*</span>
                       </label>
                       <input
-                        type="password"
-                        maxLength={4}
+                        type={showMyNew ? "text" : "password"}
                         required
-                        placeholder="Re-enter new PIN"
-                        value={confirmPinInput}
-                        onChange={(e) => setConfirmPinInput(e.target.value.replace(/\D/g, ""))}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-mono tracking-widest outline-none focus:ring-2 focus:ring-purple-600"
+                        placeholder="Re-enter new password"
+                        value={myConfirmPassword}
+                        onChange={(e) => setMyConfirmPassword(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-purple-600"
                       />
                     </div>
                   </div>
 
-                  {pinError && (
+                  {myPasswordError && (
                     <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-300 rounded-xl text-rose-700 text-xs font-bold animate-in fade-in">
                       <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span>{pinError}</span>
+                      <span>{myPasswordError}</span>
                     </div>
                   )}
 
-                  <div className="pt-2">
+                  <div className="pt-1">
                     <button
                       type="submit"
                       className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition-all"
                     >
                       <Lock className="w-3.5 h-3.5" />
-                      <span>Update Security PIN</span>
+                      <span>Update My Password</span>
                     </button>
                   </div>
                 </form>
+              </div>
 
-                <div className="pt-3 border-t border-slate-200/80 text-[11px] text-slate-500">
-                  <p>
-                    💡 <strong>Default Master PIN:</strong> The factory default PIN is <strong className="font-mono text-purple-700">7708</strong>. Changes are saved instantly to the local system storage.
-                  </p>
+              {/* 2. All Staff Passwords & Account Access (Owner / Admin Manager) */}
+              <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-5 sm:p-6 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-blue-600" />
+                      <span>All Staff Accounts & Password Manager</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Owner & Admin can view all registered credentials and reset passwords for any staff member directly.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {users.map((staff) => {
+                    const isOwner = staff.role === "Owner" || staff.role === "Owner / MD";
+                    const isAdmin = staff.role === "Admin";
+                    const isRevealed = !!revealedPasswords[staff.id];
+                    const staffPass = staff.password || (isOwner ? "7708" : isAdmin ? "5678" : "1234");
+
+                    return (
+                      <div
+                        key={staff.id}
+                        className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center font-bold text-slate-700 text-xs shrink-0">
+                              {staff.avatar ? (
+                                <img src={staff.avatar} alt={staff.name} className="w-full h-full object-cover" />
+                              ) : (
+                                staff.name.slice(0, 2).toUpperCase()
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 text-xs">{staff.name}</p>
+                              <p className="text-[10px] text-slate-500">{staff.phone || staff.email}</p>
+                            </div>
+                          </div>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              isOwner
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : isAdmin
+                                ? "bg-purple-50 text-purple-700 border-purple-200"
+                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            }`}
+                          >
+                            {staff.role}
+                          </span>
+                        </div>
+
+                        {/* Password Display & Edit Row */}
+                        <div className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-200/80">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                              Password:
+                            </span>
+                            <span className="font-mono text-xs font-bold text-slate-800 tracking-wider">
+                              {isRevealed ? staffPass : "••••••"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleRevealPassword(staff.id)}
+                              className="text-slate-400 hover:text-slate-600 p-0.5 ml-1"
+                              title={isRevealed ? "Hide Password" : "Show Password"}
+                            >
+                              {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedStaffForPassword(staff);
+                              setStaffNewPassword("");
+                              setStaffPasswordError("");
+                            }}
+                            className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-[11px] font-bold text-blue-700 flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
+                          >
+                            <Key className="w-3 h-3 text-blue-600" />
+                            <span>Set Password</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
+
+              {/* Reset Staff Password Modal */}
+              {selectedStaffForPassword && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+                  <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-3.5 bg-blue-600 text-white">
+                      <div className="flex items-center gap-2">
+                        <Key className="w-4 h-4 text-blue-200" />
+                        <h4 className="font-bold text-sm">
+                          Set Password for {selectedStaffForPassword.name}
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStaffForPassword(null)}
+                        className="text-blue-200 hover:text-white"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleUpdateStaffPassword} className="p-5 space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          New Password / PIN for {selectedStaffForPassword.name}: <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. 1234 or new secret password"
+                          value={staffNewPassword}
+                          onChange={(e) => setStaffNewPassword(e.target.value)}
+                          className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-blue-600"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Can be any 4-digit PIN or alphanumeric text (minimum 3 characters).
+                        </p>
+                      </div>
+
+                      {staffPasswordError && (
+                        <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs font-bold">
+                          {staffPasswordError}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStaffForPassword(null)}
+                          className="px-3 py-1.5 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
+                        >
+                          Save New Password
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

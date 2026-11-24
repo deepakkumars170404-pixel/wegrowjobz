@@ -147,6 +147,7 @@ export const initialUsers: AppUser[] = [
     joinedDate: "01 Jan 2023",
     avatar: "",
     lastActive: "Active now",
+    password: "7708",
   },
   {
     id: "usr-gopinath",
@@ -159,6 +160,7 @@ export const initialUsers: AppUser[] = [
     joinedDate: "01 Feb 2023",
     avatar: "",
     lastActive: "Active now",
+    password: "5678",
   },
   {
     id: "usr-vijayakumar",
@@ -171,6 +173,7 @@ export const initialUsers: AppUser[] = [
     joinedDate: "01 Feb 2023",
     avatar: "",
     lastActive: "Active now",
+    password: "5678",
   },
   {
     id: "usr-muthumeena",
@@ -183,6 +186,7 @@ export const initialUsers: AppUser[] = [
     joinedDate: "01 Mar 2023",
     avatar: "",
     lastActive: "Active now",
+    password: "1234",
   },
 ];
 

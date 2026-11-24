@@ -56,6 +56,11 @@ interface CRMContextType {
   courses: Course[];
   telecallers: Telecaller[];
   users: AppUser[];
+  currentUser: AppUser;
+  setCurrentUser: (user: AppUser) => void;
+  loginAsUser: (userIdOrName: string, passwordAttempt: string) => { success: boolean; error?: string };
+  updateUserPassword: (userId: string, newPassword: string, oldPassword?: string) => { success: boolean; error?: string };
+  logoutUser: () => void;
   activeUserRole: string;
   setActiveUserRole: (role: string) => void;
   toasts: ToastMessage[];
@@ -131,6 +136,7 @@ interface CRMContextType {
     email: string;
     dailyTarget?: number;
     role?: "Senior Telecaller" | "Telecalling Executive" | "Admissions Counsellor";
+    password?: string;
   }) => void;
   toggleTelecallerStatus: (id: string) => void;
   updateTelecallerTarget: (id: string, targetCalls: number) => void;
@@ -168,13 +174,35 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [whatsappChats, setWhatsappChats] = useState<WhatsAppChat[]>(initialWhatsAppChats);
   const [courses] = useState<Course[]>(initialCourses);
   const [telecallers, setTelecallers] = useState<Telecaller[]>(initialTelecallers);
-  const [users, setUsers] = useState<AppUser[]>(initialUsers);
+  const [users, setUsers] = useState<AppUser[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("wegrow_jobz_users_v2");
+        if (stored) return JSON.parse(stored);
+      } catch {}
+    }
+    return initialUsers;
+  });
+  const [currentUser, setCurrentUser] = useState<AppUser>(initialUsers[0]);
   const [activeUserRole, setActiveUserRole] = useState<string>("Owner");
   const [securityPin, setSecurityPin] = useState<string>("7708");
   const [isManagementUnlocked, setIsManagementUnlocked] = useState<boolean>(false);
 
   useEffect(() => {
     try {
+      const storedUsers = localStorage.getItem("wegrow_jobz_users_v2");
+      if (storedUsers) {
+        const parsed = JSON.parse(storedUsers);
+        setUsers(parsed);
+        const sessionUserId = sessionStorage.getItem("wegrow_current_user_id");
+        if (sessionUserId) {
+          const found = parsed.find((u: AppUser) => u.id === sessionUserId);
+          if (found) {
+            setCurrentUser(found);
+            setActiveUserRole(found.role);
+          }
+        }
+      }
       const stored = localStorage.getItem("wegrow_security_pin");
       if (stored && /^\d{4}$/.test(stored)) {
         setSecurityPin(stored);
@@ -1690,6 +1718,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     email: string;
     dailyTarget?: number;
     role?: "Senior Telecaller" | "Telecalling Executive" | "Admissions Counsellor";
+    password?: string;
   }) => {
     const id = "TC-" + (telecallers.length + 1).toString().padStart(3, "0");
     const newCaller: Telecaller = {
@@ -1712,8 +1741,32 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isPunchedIn: true,
       punchInTime: "09:30 AM",
       workingHours: "0h 0m",
+      password: callerData.password || "1234",
     };
     setTelecallers((prev) => [...prev, newCaller]);
+
+    // Also register in AppUsers
+    const newUser: AppUser = {
+      id: `usr-${callerData.name.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
+      name: callerData.name,
+      email: callerData.email,
+      phone: callerData.phone,
+      role: "Telecaller",
+      assignedLeads: 0,
+      status: "Active",
+      joinedDate: new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }),
+      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+      lastActive: "Active now",
+      password: callerData.password || "1234",
+    };
+    setUsers((prev) => {
+      const updated = [...prev, newUser];
+      try {
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
     showToast({
       type: "success",
       title: "Telecaller Enrolled",
@@ -1923,6 +1976,118 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   }, []);
 
+  const loginAsUser = useCallback(
+    (userIdOrName: string, passwordAttempt: string): { success: boolean; error?: string } => {
+      const targetUser = users.find(
+        (u) =>
+          u.id.toLowerCase() === userIdOrName.toLowerCase() ||
+          u.name.toLowerCase() === userIdOrName.toLowerCase()
+      );
+
+      if (!targetUser) {
+        return { success: false, error: "Staff account not found." };
+      }
+
+      const expectedPassword = targetUser.password || "1234";
+      if (passwordAttempt.trim() !== expectedPassword.trim()) {
+        return { success: false, error: `Access Denied! Incorrect password for ${targetUser.name}.` };
+      }
+
+      setCurrentUser(targetUser);
+      setActiveUserRole(targetUser.role);
+      const isMgmt = targetUser.role === "Owner" || targetUser.role === "Admin";
+      setIsManagementUnlocked(isMgmt);
+
+      try {
+        sessionStorage.setItem("wegrow_current_user_id", targetUser.id);
+        if (isMgmt) {
+          sessionStorage.setItem("wegrow_mgmt_unlocked", "true");
+        } else {
+          sessionStorage.removeItem("wegrow_mgmt_unlocked");
+        }
+      } catch {}
+
+      showToast({
+        type: "success",
+        title: "Login Successful",
+        message: `Welcome back, ${targetUser.name} (${targetUser.role})!`,
+      });
+
+      return { success: true };
+    },
+    [users, showToast]
+  );
+
+  const updateUserPassword = useCallback(
+    (userId: string, newPassword: string, oldPassword?: string): { success: boolean; error?: string } => {
+      const targetUser = users.find(
+        (u) => u.id === userId || u.name.toLowerCase() === userId.toLowerCase()
+      );
+
+      if (!targetUser) {
+        return { success: false, error: "Staff account not found." };
+      }
+
+      if (oldPassword !== undefined && oldPassword.trim()) {
+        const currentExpected = targetUser.password || "1234";
+        if (oldPassword.trim() !== currentExpected.trim()) {
+          return { success: false, error: "Current password does not match." };
+        }
+      }
+
+      if (!newPassword || newPassword.trim().length < 3) {
+        return { success: false, error: "Password must be at least 3 characters or digits." };
+      }
+
+      const updatedClean = newPassword.trim();
+      const updatedUsers = users.map((u) =>
+        u.id === targetUser.id ? { ...u, password: updatedClean } : u
+      );
+      setUsers(updatedUsers);
+
+      if (currentUser && currentUser.id === targetUser.id) {
+        setCurrentUser({ ...targetUser, password: updatedClean });
+      }
+
+      setTelecallers((prev) =>
+        prev.map((t) =>
+          t.name.toLowerCase() === targetUser.name.toLowerCase() ? { ...t, password: updatedClean } : t
+        )
+      );
+
+      try {
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updatedUsers));
+      } catch {}
+
+      showToast({
+        type: "success",
+        title: "Password Updated",
+        message: `Login password for ${targetUser.name} has been updated.`,
+      });
+
+      return { success: true };
+    },
+    [users, currentUser, showToast]
+  );
+
+  const logoutUser = useCallback(() => {
+    const defaultCaller = users.find((u) => u.role === "Telecaller") || users[users.length - 1];
+    if (defaultCaller) {
+      setCurrentUser(defaultCaller);
+    }
+    setActiveUserRole("Telecaller");
+    setIsManagementUnlocked(false);
+    try {
+      sessionStorage.removeItem("wegrow_mgmt_unlocked");
+      sessionStorage.removeItem("wegrow_current_user_id");
+    } catch {}
+    showToast({
+      type: "info",
+      title: "Session Locked",
+      message: "Logged out. Switched to Telecaller Desk.",
+    });
+  }, [users, showToast]);
+
   return (
     <CRMContext.Provider
       value={{
@@ -1932,6 +2097,11 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         courses,
         telecallers,
         users,
+        currentUser,
+        setCurrentUser,
+        loginAsUser,
+        updateUserPassword,
+        logoutUser,
         activeUserRole,
         setActiveUserRole,
         toasts,

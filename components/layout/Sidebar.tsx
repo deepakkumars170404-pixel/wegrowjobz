@@ -54,10 +54,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setActiveUserRole,
     isManagementUnlocked,
     lockManagementSession,
+    currentUser,
+    logoutUser,
   } = useCRM();
 
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [pinTargetRole, setPinTargetRole] = useState<"Owner" | "Admin">("Owner");
+  const [pinTargetRole, setPinTargetRole] = useState<"Owner" | "Admin" | "Telecaller">("Owner");
 
   const handleSelectRole = (target: "Owner" | "Admin" | "Telecaller") => {
     if (target === "Telecaller") {
@@ -65,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return;
     }
 
-    if (isManagementUnlocked) {
+    if (currentUser && currentUser.role === target && isManagementUnlocked) {
       setActiveUserRole(target);
     } else {
       setPinTargetRole(target);
@@ -340,35 +342,58 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* User Profile Footer */}
         <div className="p-3 border-t border-slate-100 bg-slate-50/50">
           <div
+            onClick={() => {
+              setPinTargetRole(isOwner ? "Owner" : isAdmin ? "Admin" : "Telecaller");
+              setIsPinModalOpen(true);
+            }}
             className={cn(
-              "flex items-center gap-3 p-2 rounded-xl bg-white border border-slate-200/60 shadow-xs",
+              "flex items-center gap-3 p-2 rounded-xl bg-white border border-slate-200/60 shadow-xs cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all group",
               collapsed && "justify-center p-1"
             )}
+            title="Click to Switch Account or Re-Login"
           >
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold text-xs ring-1 ring-blue-300">
-              {isOwner ? "OW" : "TC"}
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold text-xs ring-1 ring-blue-300 overflow-hidden shrink-0">
+              {currentUser?.avatar ? (
+                <img src={currentUser.avatar} alt={currentUser.name} className="w-full h-full object-cover" />
+              ) : (
+                (currentUser?.name || "WB").slice(0, 2).toUpperCase()
+              )}
             </div>
 
             {!collapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-slate-800 truncate leading-tight">
-                  {isOwner ? "Thavabalan" : "Telecalling Staff"}
+                <p className="text-xs font-bold text-slate-800 truncate leading-tight group-hover:text-blue-700">
+                  {currentUser?.name || (isOwner ? "Thavabalan" : "Telecalling Staff")}
                 </p>
-                <p className="text-[10px] font-medium text-slate-500 truncate">
-                  {isOwner ? "WeGrow Jobz Owner" : "Active Telecaller"}
-                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={cn(
+                    "text-[10px] font-semibold px-1.5 py-0.2 rounded-sm",
+                    isOwner ? "bg-blue-50 text-blue-700" :
+                    isAdmin ? "bg-purple-50 text-purple-700" :
+                    "bg-emerald-50 text-emerald-700"
+                  )}>
+                    {currentUser?.role || (isOwner ? "Owner" : "Telecaller")}
+                  </span>
+                  <span className="text-[10px] text-slate-400 group-hover:text-blue-600">Switch ▾</span>
+                </div>
               </div>
             )}
           </div>
         </div>
       </aside>
 
-      {/* 4-Digit Executive Security PIN Modal */}
+      {/* Account Security Login / Switcher Modal */}
       <SecurityPinModal
         isOpen={isPinModalOpen}
         onClose={() => setIsPinModalOpen(false)}
         targetRole={pinTargetRole}
-        onSuccess={() => setActiveUserRole(pinTargetRole)}
+        onSuccess={(loggedUser) => {
+          if (loggedUser) {
+            setActiveUserRole(loggedUser.role);
+          } else {
+            setActiveUserRole(pinTargetRole);
+          }
+        }}
       />
     </>
   );

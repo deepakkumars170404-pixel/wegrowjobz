@@ -14,8 +14,11 @@ import {
   ChevronDown,
   UserCheck,
   Check,
+  Lock,
 } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
+import { SecurityPinModal } from "@/components/shared/SecurityPinModal";
+import { AppUser } from "@/types";
 
 interface HeaderProps {
   onMobileMenuToggle: () => void;
@@ -27,11 +30,22 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAddLeadModal,
 }) => {
   const pathname = usePathname();
-  const { leads, activeUserRole, setActiveUserRole, telecallers } = useCRM();
+  const {
+    leads,
+    activeUserRole,
+    setActiveUserRole,
+    telecallers,
+    users,
+    currentUser,
+    isManagementUnlocked,
+  } = useCRM();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authTargetRole, setAuthTargetRole] = useState<"Owner" | "Admin" | "Telecaller">("Owner");
+  const [authTargetUser, setAuthTargetUser] = useState<AppUser | null>(null);
   const roleDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -226,8 +240,13 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
               <button
                 onClick={() => {
-                  setActiveUserRole("Owner");
                   setIsRoleDropdownOpen(false);
+                  if (currentUser?.role === "Owner" && isManagementUnlocked) {
+                    setActiveUserRole("Owner");
+                  } else {
+                    setAuthTargetRole("Owner");
+                    setIsAuthModalOpen(true);
+                  }
                 }}
                 className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
               >
@@ -244,8 +263,13 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
               <button
                 onClick={() => {
-                  setActiveUserRole("Admin (Gopinath)");
                   setIsRoleDropdownOpen(false);
+                  if (currentUser?.role === "Admin" && isManagementUnlocked) {
+                    setActiveUserRole("Admin (Gopinath)");
+                  } else {
+                    setAuthTargetRole("Admin");
+                    setIsAuthModalOpen(true);
+                  }
                 }}
                 className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
               >
@@ -257,8 +281,13 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
               <button
                 onClick={() => {
-                  setActiveUserRole("Admin (Vijayakumar)");
                   setIsRoleDropdownOpen(false);
+                  if (currentUser?.role === "Admin" && isManagementUnlocked) {
+                    setActiveUserRole("Admin (Vijayakumar)");
+                  } else {
+                    setAuthTargetRole("Admin");
+                    setIsAuthModalOpen(true);
+                  }
                 }}
                 className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
               >
@@ -297,6 +326,21 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
       </div>
+
+      {/* Account Security Login Modal */}
+      <SecurityPinModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        targetRole={authTargetRole}
+        targetUser={authTargetUser}
+        onSuccess={(user) => {
+          if (user) {
+            setActiveUserRole(user.role);
+          } else {
+            setActiveUserRole(authTargetRole);
+          }
+        }}
+      />
     </header>
   );
 };

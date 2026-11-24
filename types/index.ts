@@ -188,6 +188,7 @@ export interface Telecaller {
   punchOutTime?: string;
   isPunchedIn?: boolean;
   workingHours?: string;
+  password?: string;
 }
 
 export interface Course {
@@ -218,4 +219,5 @@ export interface AppUser {
   joinedDate: string;
   avatar: string;
   lastActive: string;
+  password?: string;
 }
