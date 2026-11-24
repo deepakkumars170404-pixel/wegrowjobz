@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import {
   Users2,
@@ -19,9 +19,11 @@ import {
 } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
 import { WEGROW_STAFF_MEMBERS } from "@/types";
+import { UniversalImportModal } from "@/components/leads/UniversalImportModal";
 
 export default function DashboardPage() {
   const { leads, followUps, activeUserRole } = useCRM();
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const isOwner =
     activeUserRole === "Owner" ||
@@ -114,13 +116,14 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          <Link
-            href="/leads"
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow transition-all"
+          <button
+            type="button"
+            onClick={() => setIsImportModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow transition-all cursor-pointer"
           >
             <Upload className="w-4 h-4 stroke-[2.5]" />
             <span>Import Candidates</span>
-          </Link>
+          </button>
 
           <Link
             href="/reports"
@@ -310,13 +313,14 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <Link
-            href="/leads"
-            className="mt-5 w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow transition-all"
+          <button
+            type="button"
+            onClick={() => setIsImportModalOpen(true)}
+            className="mt-5 w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow transition-all cursor-pointer"
           >
             <span>Open Candidate Importer</span>
             <ArrowRight className="w-4 h-4" />
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -416,6 +420,12 @@ export default function DashboardPage() {
           </table>
         </div>
       </div>
+
+      {/* Universal Candidate Importer Modal (Google Sheets, Excel, Text) */}
+      <UniversalImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+      />
     </div>
   );
 }
