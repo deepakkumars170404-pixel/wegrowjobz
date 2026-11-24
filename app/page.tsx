@@ -23,7 +23,13 @@ import { WEGROW_STAFF_MEMBERS } from "@/types";
 export default function DashboardPage() {
   const { leads, followUps, activeUserRole } = useCRM();
 
-  const isOwner = activeUserRole === "Owner" || activeUserRole === "Owner / MD" || activeUserRole === "Admin";
+  const isOwner =
+    activeUserRole === "Owner" ||
+    activeUserRole === "Owner / MD" ||
+    activeUserRole === "Admin" ||
+    activeUserRole.includes("Admin") ||
+    activeUserRole === "Gopinath (HR)" ||
+    activeUserRole === "Vijayakumar";
 
   // Real-time statistics from active leads
   const stats = useMemo(() => {

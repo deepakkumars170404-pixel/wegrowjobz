@@ -119,12 +119,23 @@ export default function CallManagementPage() {
     })[] = [];
 
     const seenIds = new Set<string>();
+    const seenSignatures = new Set<string>();
+
+    const makeSignature = (phone?: string, date?: string, time?: string) => {
+      const cleanPhone = String(phone || "").replace(/\D/g, "").slice(-10);
+      const cleanDate = String(date || "").trim();
+      const cleanTime = String(time || "").replace(/[^0-9a-zA-Z]/g, "").toLowerCase();
+      return `${cleanPhone}_${cleanDate}_${cleanTime}`;
+    };
 
     // 1. First add direct Supabase Cloud calls
     directDbCalls.forEach((c: any) => {
       const idKey = c.id || `${c.phone}_${c.call_date}_${c.call_time}`;
-      if (!seenIds.has(idKey)) {
+      const sigKey = makeSignature(c.phone, c.call_date, c.call_time || c.from_time);
+
+      if (!seenIds.has(idKey) && (!sigKey || !seenSignatures.has(sigKey))) {
         seenIds.add(idKey);
+        if (sigKey) seenSignatures.add(sigKey);
         list.push({
           id: c.id,
           leadId: c.lead_id || "",
@@ -151,13 +162,16 @@ export default function CallManagementPage() {
       }
     });
 
-    // 2. Also merge calls from leads
+    // 2. Also merge calls from leads (deduplicated by ID and signature)
     leads.forEach((l) => {
       if (l.callHistory) {
         l.callHistory.forEach((c) => {
           const idKey = c.id || `${c.phone || l.phone}_${c.callDate}_${c.callTime}`;
-          if (!seenIds.has(idKey)) {
+          const sigKey = makeSignature(c.phone || l.phone, c.callDate, c.callTime || c.fromTime);
+
+          if (!seenIds.has(idKey) && (!sigKey || !seenSignatures.has(sigKey))) {
             seenIds.add(idKey);
+            if (sigKey) seenSignatures.add(sigKey);
             list.push({
               ...c,
               studentName: c.studentName || l.studentName,

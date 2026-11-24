@@ -55,7 +55,13 @@ export default function LeadDetailPage() {
     initiateCall,
   } = useCRM();
 
-  const isOwnerMD = activeUserRole === "Owner" || activeUserRole === "Owner / MD";
+  const isOwnerMD =
+    activeUserRole === "Owner" ||
+    activeUserRole === "Owner / MD" ||
+    activeUserRole === "Admin" ||
+    activeUserRole.includes("Admin") ||
+    activeUserRole === "Gopinath (HR)" ||
+    activeUserRole === "Vijayakumar";
 
   const lead = leads.find((l) => l.id === leadId) || leads[0];
 

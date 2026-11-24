@@ -437,6 +437,7 @@ export const ApiService = {
       safeLeadId = `LD-MOB-${Date.now()}`;
     }
     record.leadId = safeLeadId;
+    const callId = record.id || `cr-mob-${Date.now()}`;
 
     const mappedStatus =
       record.disposition === "Not Interested"
@@ -520,7 +521,6 @@ export const ApiService = {
         }
 
         // STEP 2: UPSERT CALL SECOND (with valid lead_id)
-        const callId = record.id || `cr-mob-${Date.now()}`;
         const callPayload: any = {
           id: callId,
           lead_id: safeLeadId,
@@ -592,6 +592,7 @@ export const ApiService = {
           headers: { "Content-Type": "application/json" },
           signal: controller.signal,
           body: JSON.stringify({
+            id: callId,
             leadId: safeLeadId,
             studentName: record.studentName,
             phone: record.phone,
@@ -627,9 +628,9 @@ export const ApiService = {
     if (cloudSynced) {
       return { success: true };
     } else {
-      // Offline fallback: save into pending queue
+      // Offline fallback: save into pending queue so it auto-syncs when online
       await StorageService.addPendingCall(record);
-      return { success: false, error: "Saved locally. Will sync when online." };
+      return { success: true, error: "Saved locally. Auto-syncing to cloud." };
     }
   },
 
@@ -661,7 +662,7 @@ export const ApiService = {
     if (!isSupabaseReady() || !supabaseMobile) return false;
     try {
       const activeMode = await StorageService.getAppMode();
-      const attTable = activeMode === "jobz" ? "jobz_attendance" : "staff_attendance";
+      const attTable = "jobz_attendance";
 
       const payload: any = {
         id: att.id || `att-${att.date}-${att.callerName}`,

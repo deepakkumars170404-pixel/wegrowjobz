@@ -63,6 +63,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const {
+      id,
       leadId,
       studentName,
       phone,
@@ -196,7 +197,7 @@ export async function POST(request: Request) {
         // Create new call record
         const isAttended = durationSeconds > 0;
         const newCallRecord: CallRecord = {
-          id: "cr-mob-" + Date.now(),
+          id: id || ("cr-mob-" + Date.now()),
           callDate: dateStr,
           callTime: fromTime,
           callerName: callerName,
@@ -249,7 +250,7 @@ export async function POST(request: Request) {
       // Create a new direct enquiry lead if not in system
       const isAttended = durationSeconds > 0;
       const newCallRecord: CallRecord = {
-        id: "cr-mob-" + Date.now(),
+        id: id || ("cr-mob-" + Date.now()),
         callDate: dateStr,
         callTime: fromTime,
         callerName: callerName,

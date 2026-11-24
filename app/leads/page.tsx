@@ -57,7 +57,13 @@ export default function LeadsPage() {
     addLeadsBulk,
   } = useCRM();
 
-  const isOwnerMD = activeUserRole === "Owner" || activeUserRole === "Owner / MD";
+  const isOwnerMD =
+    activeUserRole === "Owner" ||
+    activeUserRole === "Owner / MD" ||
+    activeUserRole === "Admin" ||
+    activeUserRole.includes("Admin") ||
+    activeUserRole === "Gopinath (HR)" ||
+    activeUserRole === "Vijayakumar";
   const isTelecaller = activeUserRole === "Telecaller";
 
   // Custom View state

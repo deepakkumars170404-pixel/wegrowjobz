@@ -1,5 +1,5 @@
 import * as Linking from "expo-linking";
-import { Alert, NativeEventEmitter, NativeModules, Platform } from "react-native";
+import { Alert, NativeEventEmitter, NativeModules, Platform, PermissionsAndroid } from "react-native";
 import { StorageService } from "./storage";
 
 const { WegrowTelephony } = NativeModules;
@@ -67,6 +67,36 @@ export const TelephonyService = {
     return null;
   },
 
+  async requestTelephonyPermissions(): Promise<boolean> {
+    if (Platform.OS !== "android") return true;
+    try {
+      const permissions = [
+        PermissionsAndroid.PERMISSIONS.CALL_PHONE,
+        PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
+        PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
+      ];
+      const results = await PermissionsAndroid.requestMultiple(permissions);
+      const callPhoneOk =
+        results[PermissionsAndroid.PERMISSIONS.CALL_PHONE] === PermissionsAndroid.RESULTS.GRANTED;
+      const callLogOk =
+        results[PermissionsAndroid.PERMISSIONS.READ_CALL_LOG] === PermissionsAndroid.RESULTS.GRANTED;
+      return callPhoneOk && callLogOk;
+    } catch {
+      return false;
+    }
+  },
+
+  async hasTelephonyPermissions(): Promise<boolean> {
+    if (Platform.OS !== "android") return true;
+    try {
+      const callPhone = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CALL_PHONE);
+      const callLog = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_CALL_LOG);
+      return callPhone && callLog;
+    } catch {
+      return false;
+    }
+  },
+
   async getLastCallLog(phoneNumber?: string): Promise<{
     number: string;
     durationSeconds: number;
@@ -108,6 +138,21 @@ export const TelephonyService = {
     if (clean10Digits.length < 7) {
       Alert.alert("Invalid Number", "Phone number must have at least 7 to 10 digits.");
       return { success: false, error: "Number too short" };
+    }
+
+    // Check runtime permissions on Android before dialing
+    if (Platform.OS === "android") {
+      const hasPerms = await this.hasTelephonyPermissions();
+      if (!hasPerms) {
+        const granted = await this.requestTelephonyPermissions();
+        if (!granted) {
+          Alert.alert(
+            "Phone Permissions Required",
+            "Please grant Call Phone and Call Log permissions so the app can place direct calls and automatically verify call duration."
+          );
+          return { success: false, error: "Permissions not granted" };
+        }
+      }
     }
 
     // Auto-detect active mode from storage if not passed directly

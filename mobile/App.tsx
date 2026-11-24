@@ -78,6 +78,9 @@ export default function App() {
   // Recording path found after call ended (passed to CallModal)
   const [modalRecordingPath, setModalRecordingPath] = useState<string | undefined>(undefined);
 
+  // Anti-duplication lock to prevent double-firing call ended from both telephony listener and appState change
+  const lastHandledCallRef = useRef<{ phone: string; timestamp: number }>({ phone: "", timestamp: 0 });
+
   // Initialize App Mode, Settings and Attendance Gate
   useEffect(() => {
     (async () => {
@@ -208,6 +211,19 @@ export default function App() {
   }) => {
     isCallingRef.current = false;
 
+    // Strict deduplication guard: ignore duplicate triggers for the same number within 4 seconds
+    const cleanPhone = (callData.phoneNumber || "").replace(/\D/g, "").slice(-10);
+    const now = Date.now();
+    if (
+      cleanPhone &&
+      lastHandledCallRef.current.phone === cleanPhone &&
+      now - lastHandledCallRef.current.timestamp < 4000
+    ) {
+      console.log("[WeGrow] Duplicate callEnded event ignored for", cleanPhone);
+      return;
+    }
+    lastHandledCallRef.current = { phone: cleanPhone, timestamp: now };
+
     const targetLead: Lead = callData.lead || {
       id: `inq-${Date.now()}`,
       studentName: callData.studentName || (appMode === "jobz" ? "Job Candidate Inquiry" : "Student Inquiry"),
@@ -291,21 +307,13 @@ export default function App() {
             }
           }
 
-          // If no call was detected in call log, check fallback time
-          const wallClockElapsed = Math.max(0, Math.round((Date.now() - session.startTime) / 1000));
-          // If staff was in Google Dialer for at least 3 seconds, treat as call occurred
-          if (!callActuallyHappened && wallClockElapsed >= 3) {
-            callActuallyHappened = true;
-            exactDuration = wallClockElapsed;
-          }
-
-          // If still no call actually happened (e.g., pressed call and returned immediately < 3s with no log), skip form!
+          // If no call was detected in Android CallLog, user did not place the call (e.g. cancelled/returned). Skip form!
           if (!callActuallyHappened) {
-            console.log("[WeGrow] User returned immediately without placing call. Skipped.");
+            console.log("[WeGrow] No outgoing call detected in CallLog for", session.phone, ". User did not place call. Form skipped.");
             return;
           }
 
-          const finalDuration = exactDuration !== null ? exactDuration : wallClockElapsed;
+          const finalDuration = exactDuration !== null && exactDuration >= 0 ? exactDuration : 0;
           if (!startMs) startMs = session.startTime;
           if (!endMs) endMs = Date.now();
 

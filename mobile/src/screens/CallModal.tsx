@@ -289,12 +289,8 @@ export const CallModal: React.FC<CallModalProps> = ({
       callEndTime: endTimeStr,
       notes: [customReason.trim() ? `Reason: ${customReason.trim()}` : "", notes.trim()].filter(Boolean).join(" • "),
       remarks: [customReason.trim() ? `Reason: ${customReason.trim()}` : "", notes.trim()].filter(Boolean).join(" • "),
-      nextFollowUpDate: ["Call Later", "Interested", "Interview Scheduled", "Counselling Scheduled"].includes(disposition)
-        ? nextFollowUpDate
-        : undefined,
-      nextFollowUpTime: ["Call Later", "Interested", "Interview Scheduled", "Counselling Scheduled"].includes(disposition)
-        ? nextFollowUpTime
-        : undefined,
+      nextFollowUpDate: nextFollowUpDate ? nextFollowUpDate : undefined,
+      nextFollowUpTime: nextFollowUpTime ? nextFollowUpTime : undefined,
       timestamp: Date.now(),
       syncedToCrm: false,
       appMode,
@@ -331,7 +327,7 @@ export const CallModal: React.FC<CallModalProps> = ({
           <View style={styles.modalHeader}>
             <View style={{ flex: 1 }}>
               <View style={styles.titleRow}>
-                <Text style={styles.headerTitle}>{lead.studentName}</Text>
+                <Text style={styles.headerTitle}>{candidateName || lead.studentName}</Text>
                 <View
                   style={[
                     styles.badge,
@@ -344,12 +340,19 @@ export const CallModal: React.FC<CallModalProps> = ({
                 </View>
               </View>
               <Text style={styles.headerSubtitle}>
-                📞 {lead.phone} • {isJobz ? "Jobz CRM Mode" : "Admission CRM Mode"}
+                📞 {phoneNumber || lead.phone} • {isJobz ? "Jobz CRM Mode" : "Admission CRM Mode"}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <XCircle size={26} color="#94A3B8" />
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={styles.durationBadge}>
+                <Text style={styles.durationText}>
+                  Talk: {mins.toString().padStart(2, "0")}:{secs.toString().padStart(2, "0")}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <XCircle size={26} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -733,8 +736,7 @@ export const CallModal: React.FC<CallModalProps> = ({
             </View>
 
             {/* Next Callback Date / Follow-up (Interactive Mini Calendar & Mini Clock) */}
-            {["Call Later", "Interested", "Interview Scheduled", "Counselling Scheduled"].includes(disposition) && (
-              <View style={styles.scheduleBox}>
+            <View style={styles.scheduleBox}>
                 <View style={styles.scheduleHeaderRow}>
                   <Text style={styles.sectionLabel}>📅 SCHEDULE NEXT FOLLOW-UP</Text>
                   {(Boolean(nextFollowUpDate) || Boolean(nextFollowUpTime)) && (
@@ -1001,13 +1003,12 @@ export const CallModal: React.FC<CallModalProps> = ({
                   />
                 </View>
               </View>
-            )}
 
             {/* Telecaller Notes / Feedback */}
             <Text style={styles.sectionLabel}>Discussion Remarks / Feedback</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Candidate feedback, communication skill, interview schedule, expectations..."
+              placeholder="e.g. Candidate spoke with Muthumeena. Discussed job role, expected salary, and notice period..."
               multiline
               numberOfLines={3}
               value={notes}
@@ -1015,17 +1016,24 @@ export const CallModal: React.FC<CallModalProps> = ({
             />
           </ScrollView>
 
-          {/* Footer Save Button */}
+          {/* Footer Action Buttons: Skip & Save Call to Profile */}
           <View style={styles.footer}>
+            <TouchableOpacity style={styles.cancelButton} onPress={onClose} disabled={submitting}>
+              <Text style={styles.cancelText}>Skip</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
-              style={[styles.saveBtn, submitting && styles.saveBtnDisabled]}
+              style={[styles.saveButton, submitting && styles.saveBtnDisabled]}
               onPress={handleSave}
               disabled={submitting}
+              activeOpacity={0.8}
             >
               {submitting ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.saveBtnText}>Save Candidate Outcome</Text>
+                <Text style={styles.saveButtonText}>
+                  Save Call to {candidateName.trim() || lead.studentName || "Candidate"}&apos;s Profile →
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -1407,8 +1415,56 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   footer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  cancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  cancelText: {
+    color: "#64748B",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  saveButton: {
+    backgroundColor: "#2563EB",
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+    marginLeft: 10,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  saveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  durationBadge: {
+    backgroundColor: "#F0FDF4",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#16A34A",
+  },
+  durationText: {
+    color: "#15803D",
+    fontSize: 12,
+    fontWeight: "800",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   saveBtn: {
     backgroundColor: THEME.colors.primary,
