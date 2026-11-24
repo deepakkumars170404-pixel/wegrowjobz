@@ -58,8 +58,16 @@ interface CRMContextType {
   users: AppUser[];
   currentUser: AppUser;
   setCurrentUser: (user: AppUser) => void;
-  loginAsUser: (userIdOrName: string, passwordAttempt: string) => { success: boolean; error?: string };
+  loginAsUser: (userIdOrName: string, passwordAttempt: string) => {
+    success: boolean;
+    requirePasswordChange?: boolean;
+    user?: AppUser;
+    error?: string;
+  };
   updateUserPassword: (userId: string, newPassword: string, oldPassword?: string) => { success: boolean; error?: string };
+  triggerUserPasswordReset: (userId: string) => { success: boolean };
+  toggleUserFreeze: (userId: string) => { success: boolean; isFrozen: boolean };
+  setSelfNewPassword: (userId: string, newPassword: string) => { success: boolean; error?: string };
   logoutUser: () => void;
   activeUserRole: string;
   setActiveUserRole: (role: string) => void;
@@ -1977,7 +1985,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const loginAsUser = useCallback(
-    (userIdOrName: string, passwordAttempt: string): { success: boolean; error?: string } => {
+    (
+      userIdOrName: string,
+      passwordAttempt: string
+    ): { success: boolean; requirePasswordChange?: boolean; user?: AppUser; error?: string } => {
       const targetUser = users.find(
         (u) =>
           u.id.toLowerCase() === userIdOrName.toLowerCase() ||
@@ -1988,15 +1999,48 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, error: "Staff account not found." };
       }
 
+      if (targetUser.status === "Inactive" || targetUser.isFrozen) {
+        return {
+          success: false,
+          error: `Account Frozen! Access for ${targetUser.name} is currently suspended by Management. Contact Owner/Admin.`,
+        };
+      }
+
       const expectedPassword = targetUser.password || "1234";
       if (passwordAttempt.trim() !== expectedPassword.trim()) {
         return { success: false, error: `Access Denied! Incorrect password for ${targetUser.name}.` };
       }
 
-      setCurrentUser(targetUser);
-      setActiveUserRole(targetUser.role);
-      const isMgmt = targetUser.role === "Owner" || targetUser.role === "Admin";
+      const nowStr = new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const updatedTarget: AppUser = {
+        ...targetUser,
+        lastLoginAt: nowStr,
+        lastActive: "Active now",
+      };
+
+      // If management triggered a reset, require them to set their own private password now
+      if (targetUser.mustChangePassword) {
+        return {
+          success: true,
+          requirePasswordChange: true,
+          user: updatedTarget,
+        };
+      }
+
+      setCurrentUser(updatedTarget);
+      setActiveUserRole(updatedTarget.role);
+      const isMgmt = updatedTarget.role === "Owner" || updatedTarget.role === "Admin";
       setIsManagementUnlocked(isMgmt);
+
+      const updatedUsers = users.map((u) => (u.id === targetUser.id ? updatedTarget : u));
+      setUsers(updatedUsers);
 
       try {
         sessionStorage.setItem("wegrow_current_user_id", targetUser.id);
@@ -2005,12 +2049,156 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else {
           sessionStorage.removeItem("wegrow_mgmt_unlocked");
         }
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updatedUsers));
       } catch {}
 
       showToast({
         type: "success",
         title: "Login Successful",
         message: `Welcome back, ${targetUser.name} (${targetUser.role})!`,
+      });
+
+      return { success: true, user: updatedTarget };
+    },
+    [users, showToast]
+  );
+
+  const triggerUserPasswordReset = useCallback(
+    (userId: string) => {
+      let targetName = "Staff";
+      const updatedUsers = users.map((u) => {
+        if (u.id === userId || u.name.toLowerCase() === userId.toLowerCase()) {
+          targetName = u.name;
+          return { ...u, mustChangePassword: true };
+        }
+        return u;
+      });
+      setUsers(updatedUsers);
+      setTelecallers((prev) =>
+        prev.map((t) =>
+          t.name.toLowerCase() === userId.toLowerCase() || t.id.toLowerCase() === userId.toLowerCase()
+            ? { ...t, mustChangePassword: true }
+            : t
+        )
+      );
+      try {
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updatedUsers));
+      } catch {}
+      showToast({
+        type: "success",
+        title: "Password Reset Triggered",
+        message: `Reset enabled for ${targetName}. They will set their own private password on next login.`,
+      });
+      return { success: true };
+    },
+    [users, showToast]
+  );
+
+  const toggleUserFreeze = useCallback(
+    (userId: string) => {
+      let newFrozenState = false;
+      let targetName = "Staff";
+      const updatedUsers: AppUser[] = users.map((u) => {
+        if (u.id === userId || u.name.toLowerCase() === userId.toLowerCase()) {
+          newFrozenState = !u.isFrozen && u.status === "Active";
+          targetName = u.name;
+          const updatedStatus: "Active" | "Inactive" = newFrozenState ? "Inactive" : "Active";
+          return {
+            ...u,
+            isFrozen: newFrozenState,
+            status: updatedStatus,
+          };
+        }
+        return u;
+      });
+      setUsers(updatedUsers);
+      setTelecallers((prev) =>
+        prev.map((t) =>
+          t.name.toLowerCase() === userId.toLowerCase() || t.id.toLowerCase() === userId.toLowerCase()
+            ? {
+                ...t,
+                isFrozen: newFrozenState,
+                status: (newFrozenState ? "Inactive" : "Active") as "Active" | "Inactive",
+              }
+            : t
+        )
+      );
+      try {
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updatedUsers));
+      } catch {}
+      showToast({
+        type: newFrozenState ? "warning" : "success",
+        title: newFrozenState ? "Account Frozen" : "Account Reactivated",
+        message: newFrozenState
+          ? `${targetName}'s account has been frozen. They cannot log in until reactivated.`
+          : `${targetName}'s account has been reactivated.`,
+      });
+      return { success: true, isFrozen: newFrozenState };
+    },
+    [users, showToast]
+  );
+
+  const setSelfNewPassword = useCallback(
+    (userId: string, newPassword: string) => {
+      if (!newPassword || newPassword.trim().length < 3) {
+        return { success: false, error: "Password must be at least 3 characters or digits." };
+      }
+      const clean = newPassword.trim();
+      let targetUser: AppUser | undefined;
+      const nowStr = new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const updatedUsers = users.map((u) => {
+        if (u.id === userId || u.name.toLowerCase() === userId.toLowerCase()) {
+          targetUser = {
+            ...u,
+            password: clean,
+            mustChangePassword: false,
+            lastActive: "Active now",
+            lastLoginAt: nowStr,
+          };
+          return targetUser;
+        }
+        return u;
+      });
+
+      if (!targetUser) {
+        return { success: false, error: "User account not found." };
+      }
+
+      setUsers(updatedUsers);
+      setCurrentUser(targetUser);
+      setActiveUserRole(targetUser.role);
+      const isMgmt = targetUser.role === "Owner" || targetUser.role === "Admin";
+      setIsManagementUnlocked(isMgmt);
+
+      setTelecallers((prev) =>
+        prev.map((t) =>
+          t.name.toLowerCase() === targetUser!.name.toLowerCase()
+            ? { ...t, password: clean, mustChangePassword: false }
+            : t
+        )
+      );
+
+      try {
+        sessionStorage.setItem("wegrow_current_user_id", targetUser.id);
+        if (isMgmt) {
+          sessionStorage.setItem("wegrow_mgmt_unlocked", "true");
+        } else {
+          sessionStorage.removeItem("wegrow_mgmt_unlocked");
+        }
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updatedUsers));
+      } catch {}
+
+      showToast({
+        type: "success",
+        title: "Private Password Set Successfully",
+        message: `Welcome, ${targetUser.name}! Your private password is saved securely.`,
       });
 
       return { success: true };
@@ -2101,6 +2289,9 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUser,
         loginAsUser,
         updateUserPassword,
+        triggerUserPasswordReset,
+        toggleUserFreeze,
+        setSelfNewPassword,
         logoutUser,
         activeUserRole,
         setActiveUserRole,

@@ -148,6 +148,8 @@ export const initialUsers: AppUser[] = [
     avatar: "",
     lastActive: "Active now",
     password: "7708",
+    mustChangePassword: false,
+    lastLoginAt: "24 Nov 2026, 04:45 PM",
   },
   {
     id: "usr-gopinath",
@@ -161,6 +163,8 @@ export const initialUsers: AppUser[] = [
     avatar: "",
     lastActive: "Active now",
     password: "5678",
+    mustChangePassword: false,
+    lastLoginAt: "24 Nov 2026, 04:15 PM",
   },
   {
     id: "usr-vijayakumar",
@@ -173,7 +177,9 @@ export const initialUsers: AppUser[] = [
     joinedDate: "01 Feb 2023",
     avatar: "",
     lastActive: "Active now",
-    password: "5678",
+    password: "9944",
+    mustChangePassword: false,
+    lastLoginAt: "24 Nov 2026, 03:50 PM",
   },
   {
     id: "usr-muthumeena",
@@ -187,6 +193,8 @@ export const initialUsers: AppUser[] = [
     avatar: "",
     lastActive: "Active now",
     password: "1234",
+    mustChangePassword: false,
+    lastLoginAt: "24 Nov 2026, 04:30 PM",
   },
 ];
 

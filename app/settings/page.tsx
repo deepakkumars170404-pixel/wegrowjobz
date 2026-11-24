@@ -29,6 +29,10 @@ import {
   Crown,
   Key,
   RefreshCw,
+  Snowflake,
+  Zap,
+  Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
 import { AppUser } from "@/types";
@@ -43,7 +47,15 @@ import {
 import { ALL_JOB_ROLES } from "@/data/job-domains";
 
 export default function SettingsPage() {
-  const { showToast, users, currentUser, updateUserPassword, activeUserRole } = useCRM();
+  const {
+    showToast,
+    users,
+    currentUser,
+    updateUserPassword,
+    activeUserRole,
+    triggerUserPasswordReset,
+    toggleUserFreeze,
+  } = useCRM();
 
   const [activeTab, setActiveTab] = useState<
     | "postcall_form"
@@ -1185,160 +1197,179 @@ export default function SettingsPage() {
                 </form>
               </div>
 
-              {/* 2. All Staff Passwords & Account Access (Owner / Admin Manager) */}
+              {/* 2. All Staff Accounts & Password Manager (Owner & Admin Desk) */}
               <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-5 sm:p-6 space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-200 gap-2">
                   <div>
                     <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                       <Shield className="w-4 h-4 text-blue-600" />
-                      <span>All Staff Accounts & Password Manager</span>
+                      <span>All Staff Accounts, Access & Session Audit</span>
                     </h4>
                     <p className="text-[11px] text-slate-500 mt-0.5">
-                      Owner & Admin can view all registered credentials and reset passwords for any staff member directly.
+                      Zero-Knowledge Password Management: Owner/Admin clicks reset; staff sets their own confidential password upon next login.
                     </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-purple-600" />
+                      <span>Zero-Knowledge Reset</span>
+                    </span>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-blue-600" />
+                      <span>Audit Active</span>
+                    </span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {users.map((staff) => {
                     const isOwner = staff.role === "Owner" || staff.role === "Owner / MD";
                     const isAdmin = staff.role === "Admin";
-                    const isRevealed = !!revealedPasswords[staff.id];
-                    const staffPass = staff.password || (isOwner ? "7708" : isAdmin ? "5678" : "1234");
+                    const isFrozen = staff.isFrozen || staff.status === "Inactive";
+                    const isResetPending = !!staff.mustChangePassword;
 
                     return (
                       <div
                         key={staff.id}
-                        className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all"
+                        className={`bg-white p-4 rounded-2xl border transition-all shadow-xs flex flex-col justify-between gap-3 ${
+                          isFrozen
+                            ? "border-rose-200 bg-rose-50/20"
+                            : isResetPending
+                            ? "border-amber-200 bg-amber-50/20"
+                            : "border-slate-200 hover:border-slate-300"
+                        }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center font-bold text-slate-700 text-xs shrink-0">
-                              {staff.avatar ? (
-                                <img src={staff.avatar} alt={staff.name} className="w-full h-full object-cover" />
-                              ) : (
-                                staff.name.slice(0, 2).toUpperCase()
-                              )}
+                        {/* Profile Info Header */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center font-bold text-slate-700 text-xs shrink-0">
+                                {staff.avatar ? (
+                                  <img src={staff.avatar} alt={staff.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  staff.name.slice(0, 2).toUpperCase()
+                                )}
+                              </div>
+                              <span
+                                className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                                  isFrozen ? "bg-rose-500" : "bg-emerald-500"
+                                }`}
+                                title={isFrozen ? "Frozen / Inactive" : "Active"}
+                              />
                             </div>
                             <div>
-                              <p className="font-bold text-slate-900 text-xs">{staff.name}</p>
-                              <p className="text-[10px] text-slate-500">{staff.phone || staff.email}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-bold text-slate-900 text-xs">{staff.name}</p>
+                                <span
+                                  className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${
+                                    isOwner
+                                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                                      : isAdmin
+                                      ? "bg-purple-50 text-purple-700 border-purple-200"
+                                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  }`}
+                                >
+                                  {staff.role}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 font-mono">
+                                {staff.phone || staff.email}
+                              </p>
                             </div>
                           </div>
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                              isOwner
-                                ? "bg-blue-50 text-blue-700 border-blue-200"
-                                : isAdmin
-                                ? "bg-purple-50 text-purple-700 border-purple-200"
-                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            }`}
-                          >
-                            {staff.role}
-                          </span>
+
+                          {/* Status Badge */}
+                          <div className="text-right">
+                            {isFrozen ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                                <Snowflake className="w-3 h-3 text-rose-600" />
+                                <span>Frozen</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                                <span>Active</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Password Display & Edit Row */}
-                        <div className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-200/80">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                              Password:
+                        {/* Session Audit & Password Status Box */}
+                        <div className="bg-slate-50/80 rounded-xl p-2.5 border border-slate-200/80 space-y-1.5 text-[11px]">
+                          {/* Session Audit (Last Active / Login) */}
+                          <div className="flex items-center justify-between text-slate-600">
+                            <span className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              <span>Last Login Audit:</span>
                             </span>
-                            <span className="font-mono text-xs font-bold text-slate-800 tracking-wider">
-                              {isRevealed ? staffPass : "••••••"}
+                            <span className="font-bold text-slate-800 text-[10px]">
+                              {staff.lastLoginAt || "First login pending"}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => toggleRevealPassword(staff.id)}
-                              className="text-slate-400 hover:text-slate-600 p-0.5 ml-1"
-                              title={isRevealed ? "Hide Password" : "Show Password"}
-                            >
-                              {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                            </button>
                           </div>
 
+                          {/* Password Status */}
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                            <span className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+                              <Lock className="w-3 h-3 text-slate-400" />
+                              <span>Password State:</span>
+                            </span>
+                            {isResetPending ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                <Zap className="w-3 h-3 text-amber-600 animate-pulse" />
+                                <span>Reset Pending (Next Login)</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Private Password Active</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Management Controls: Zero-Knowledge Reset & Freeze */}
+                        <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                          {/* 1-Click Zero-Knowledge Reset */}
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedStaffForPassword(staff);
-                              setStaffNewPassword("");
-                              setStaffPasswordError("");
-                            }}
-                            className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-[11px] font-bold text-blue-700 flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
+                            onClick={() => triggerUserPasswordReset(staff.id)}
+                            className={`flex-1 py-1.5 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer ${
+                              isResetPending
+                                ? "bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200"
+                                : "bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100"
+                            }`}
+                            title="Zero-Knowledge Reset: Flags account so staff sets their own password next time"
                           >
-                            <Key className="w-3 h-3 text-blue-600" />
-                            <span>Set Password</span>
+                            <Zap className={`w-3.5 h-3.5 ${isResetPending ? "text-amber-600" : "text-purple-600"}`} />
+                            <span>{isResetPending ? "Reset Flagged" : "Reset Password"}</span>
                           </button>
+
+                          {/* Account Freeze / Reactivate Toggle */}
+                          {!isOwner ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleUserFreeze(staff.id)}
+                              className={`py-1.5 px-3 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer ${
+                                isFrozen
+                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  : "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
+                              }`}
+                              title={isFrozen ? "Reactivate Staff Account" : "Freeze account when staff is on leave or suspended"}
+                            >
+                              <Snowflake className="w-3.5 h-3.5" />
+                              <span>{isFrozen ? "Reactivate" : "Freeze"}</span>
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-semibold px-2 py-1">
+                              Owner Root
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-
-              {/* Reset Staff Password Modal */}
-              {selectedStaffForPassword && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-                  <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-3.5 bg-blue-600 text-white">
-                      <div className="flex items-center gap-2">
-                        <Key className="w-4 h-4 text-blue-200" />
-                        <h4 className="font-bold text-sm">
-                          Set Password for {selectedStaffForPassword.name}
-                        </h4>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedStaffForPassword(null)}
-                        className="text-blue-200 hover:text-white"
-                      >
-                        ✕
-                      </button>
-                    </div>
-
-                    <form onSubmit={handleUpdateStaffPassword} className="p-5 space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          New Password / PIN for {selectedStaffForPassword.name}: <span className="text-rose-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. 1234 or new secret password"
-                          value={staffNewPassword}
-                          onChange={(e) => setStaffNewPassword(e.target.value)}
-                          className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-blue-600"
-                        />
-                        <p className="text-[10px] text-slate-400 mt-1">
-                          Can be any 4-digit PIN or alphanumeric text (minimum 3 characters).
-                        </p>
-                      </div>
-
-                      {staffPasswordError && (
-                        <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs font-bold">
-                          {staffPasswordError}
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-end gap-2 pt-2 border-t">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedStaffForPassword(null)}
-                          className="px-3 py-1.5 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
-                        >
-                          Save New Password
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 

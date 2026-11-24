@@ -189,6 +189,9 @@ export interface Telecaller {
   isPunchedIn?: boolean;
   workingHours?: string;
   password?: string;
+  mustChangePassword?: boolean;
+  lastLoginAt?: string;
+  isFrozen?: boolean;
 }
 
 export interface Course {
@@ -220,4 +223,7 @@ export interface AppUser {
   avatar: string;
   lastActive: string;
   password?: string;
+  mustChangePassword?: boolean;
+  lastLoginAt?: string;
+  isFrozen?: boolean;
 }
