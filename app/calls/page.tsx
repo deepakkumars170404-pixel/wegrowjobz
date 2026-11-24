@@ -18,6 +18,7 @@ import {
 import { useCRM } from "@/context/CRMContext";
 import { CallRecord, WEGROW_STAFF_MEMBERS } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { downloadStyledExcelReport } from "@/lib/excelExport";
 
 export default function CallManagementPage() {
   const { leads, activeUserRole } = useCRM();
@@ -234,6 +235,18 @@ export default function CallManagementPage() {
     return allCalls.reduce((acc, c) => acc + parseCallDurationSec(c), 0);
   }, [allCalls]);
 
+  const handleExportExcel = () => {
+    downloadStyledExcelReport({
+      reportTitle: "WEGROW JOBZ CRM - TELECALLING AUDIT REPORT",
+      staffName: ownerStaffFilter,
+      totalCalls: filteredOwnerCalls.length,
+      totalAttendedCalls: ownerAttendedCalls,
+      totalSpokenSeconds: totalAcademySeconds,
+      calls: filteredOwnerCalls,
+      fileName: `WeGrow_Jobz_Calls_Report_${new Date().toISOString().split("T")[0]}.xls`,
+    });
+  };
+
   return (
     <div className="space-y-6 pb-12">
       {/* 1. Header Banner */}
@@ -255,12 +268,13 @@ export default function CallManagementPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Link
-            href="/reports"
-            className="flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
           >
             <span>📊 Daily Excel Report</span>
-          </Link>
+          </button>
           <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3.5 py-2 rounded-xl border border-slate-200">
             {ownerTotalCalls} Calls Recorded
           </span>

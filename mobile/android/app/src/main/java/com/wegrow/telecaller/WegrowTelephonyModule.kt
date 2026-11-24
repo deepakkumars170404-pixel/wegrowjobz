@@ -697,8 +697,15 @@ class WegrowTelephonyModule(private val reactContext: ReactApplicationContext) :
                 file
             )
 
+            val mimeType = when {
+                fileName.endsWith(".xls") -> "application/vnd.ms-excel"
+                fileName.endsWith(".xlsx") -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                fileName.endsWith(".html") -> "text/html"
+                else -> "text/csv"
+            }
+
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/csv"
+                type = mimeType
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, title)
                 flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK

@@ -52,20 +52,25 @@ export const PunchOutReportModal: React.FC<PunchOutReportModalProps> = ({
 
   const handleShareReport = async () => {
     const todayStr = attendance.date || new Date().toISOString().split("T")[0];
-    const csvData = ExportService.generateDailyCallReportCSV(
+    const excelData = ExportService.generateDailyCallReportExcel(
       attendance,
       todayCalls,
       staffName
     );
 
-    const fileName = `WeGrow_Daily_Call_Report_${staffName}_${todayStr}.csv`;
+    const fileName = `WeGrow_Daily_Call_Report_${staffName}_${todayStr}.xls`;
     const shareTitle = `WeGrow Daily Calls Report - ${staffName} (${todayStr})`;
 
-    // 1. Try native file attachment share (opens in Excel / Sheets directly)
-    const fileShared = await TelephonyService.shareReportFile(csvData, fileName, shareTitle);
+    // 1. Try native file attachment share (opens in Excel / Sheets directly with colors and auto widths)
+    const fileShared = await TelephonyService.shareReportFile(excelData, fileName, shareTitle);
     if (fileShared) return;
 
-    // 2. Fallback to standard share
+    // 2. Fallback to standard share with enhanced CSV
+    const csvData = ExportService.generateDailyCallReportCSV(
+      attendance,
+      todayCalls,
+      staffName
+    );
     try {
       await Share.share({
         title: shareTitle,

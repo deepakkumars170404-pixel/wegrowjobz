@@ -128,11 +128,21 @@ export const DashboardScreen: React.FC = () => {
       const settings = await StorageService.getSettings();
       const staff = settings.callerName || "Muthumeena";
       const att = await StorageService.getTodayAttendance(staff);
-      const csv = ExportService.generateDailyCallReportCSV(att, filteredCalls, staff);
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = att?.date || new Date().toISOString().split("T")[0];
+
+      const excelData = ExportService.generateDailyCallReportExcel(att, filteredCalls, staff);
+      const fileName = `WeGrow_Daily_Call_Report_${staff}_${todayStr}.xls`;
+      const shareTitle = `WeGrow Daily Calls Report - ${staff} (${todayStr})`;
+
+      // 1. Try native file attachment share (opens in Excel / Sheets directly with colors and auto widths)
+      const fileShared = await TelephonyService.shareReportFile(excelData, fileName, shareTitle);
+      if (fileShared) return;
+
+      // 2. Fallback to standard share with enhanced CSV
+      const csvData = ExportService.generateDailyCallReportCSV(att, filteredCalls, staff);
       await Share.share({
-        title: `WeGrow Daily Calls Report - ${staff} - ${todayStr}`,
-        message: csv,
+        title: shareTitle,
+        message: csvData,
       });
     } catch (e: any) {
       Alert.alert("Export Error", e?.message || "Failed to generate Excel report");

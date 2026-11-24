@@ -33,6 +33,8 @@ import {
 import { useCRM } from "@/context/CRMContext";
 import { StaffAvatar } from "@/components/shared/StaffAvatar";
 import { formatINR } from "@/lib/utils";
+import { downloadStyledExcelReport } from "@/lib/excelExport";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 const courseWiseEnquiriesData = [
   { course: "Python Full Stack", enquiries: 345, admissions: 28, revenue: 1260000 },
@@ -54,7 +56,7 @@ const callingVolumeData = [
 ];
 
 export default function ReportsPage() {
-  const { telecallers, showToast } = useCRM();
+  const { telecallers, leads, showToast } = useCRM();
   const [activeTab, setActiveTab] = useState<
     "enquiry" | "calling" | "admission" | "performance"
   >("enquiry");
@@ -65,7 +67,61 @@ export default function ReportsPage() {
     setMounted(true);
   }, []);
 
-  const handleExport = (format: "PDF" | "Excel") => {
+  const handleExport = async (format: "PDF" | "Excel") => {
+    if (format === "Excel") {
+      let exportCalls: any[] = [];
+      try {
+        if (isSupabaseConfigured() && supabase) {
+          const { data } = await supabase
+            .from("jobz_calls")
+            .select("*")
+            .order("created_at", { ascending: false });
+          if (data && data.length > 0) exportCalls = data;
+        }
+      } catch {}
+
+      if (exportCalls.length === 0) {
+        leads.forEach((l) => {
+          if (l.callHistory) {
+            l.callHistory.forEach((c) => {
+              exportCalls.push({
+                ...c,
+                studentName: l.studentName,
+                phone: l.phone,
+                preferredDomain: l.courseInterested,
+                qualification: l.qualification,
+                collegeName: l.collegeName,
+              });
+            });
+          }
+        });
+      }
+
+      const totalAttended = exportCalls.filter(
+        (c) => (c.duration_seconds || c.durationSeconds || 0) > 0 || c.outcome === "Attended Call"
+      ).length;
+      const totalSpoken = exportCalls.reduce(
+        (sum, c) => sum + (c.duration_seconds || c.durationSeconds || 0),
+        0
+      );
+
+      downloadStyledExcelReport({
+        reportTitle: `WEGROW JOBZ CRM - ${activeTab.toUpperCase()} CALLS REPORT`,
+        totalCalls: exportCalls.length,
+        totalAttendedCalls: totalAttended,
+        totalSpokenSeconds: totalSpoken,
+        calls: exportCalls,
+        fileName: `WeGrow_Jobz_${activeTab}_Report_${new Date().toISOString().split("T")[0]}.xls`,
+      });
+
+      showToast({
+        type: "success",
+        title: "Excel Report Downloaded",
+        message: `Styled corporate Excel report with colors and auto column widths generated!`,
+      });
+      return;
+    }
+
     showToast({
       type: "success",
       title: `Export ${format} Initiated`,
