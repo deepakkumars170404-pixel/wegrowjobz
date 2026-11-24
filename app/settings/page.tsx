@@ -20,6 +20,10 @@ import {
   ToggleRight,
   Layers,
   HelpCircle,
+  Shield,
+  KeyRound,
+  Lock,
+  ShieldAlert,
 } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
 import {
@@ -33,7 +37,7 @@ import {
 import { ALL_JOB_ROLES } from "@/data/job-domains";
 
 export default function SettingsPage() {
-  const { showToast } = useCRM();
+  const { showToast, updateSecurityPin } = useCRM();
 
   const [activeTab, setActiveTab] = useState<
     | "postcall_form"
@@ -41,8 +45,15 @@ export default function SettingsPage() {
     | "job_domains"
     | "pipeline"
     | "calling"
+    | "security"
     | "notifications"
   >("postcall_form");
+
+  // Security Access PIN State
+  const [oldPinInput, setOldPinInput] = useState("");
+  const [newPinInput, setNewPinInput] = useState("");
+  const [confirmPinInput, setConfirmPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
 
   // Job Roles & Domains State
   const [jobRolesList, setJobRolesList] = useState<string[]>(ALL_JOB_ROLES);
@@ -154,6 +165,31 @@ export default function SettingsPage() {
     setNewStageDesc("");
     setIsAddingStage(false);
     showToast({ type: "success", title: "Stage Created", message: `Added "${newStageName}" to recruitment pipeline.` });
+  };
+
+  const handleChangePin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError("");
+
+    if (newPinInput !== confirmPinInput) {
+      setPinError("New PIN and Confirm PIN do not match.");
+      return;
+    }
+
+    if (!/^\d{4}$/.test(newPinInput)) {
+      setPinError("New PIN must be exactly 4 numeric digits.");
+      return;
+    }
+
+    const res = updateSecurityPin(oldPinInput, newPinInput);
+    if (!res.success) {
+      setPinError(res.error || "Failed to update PIN. Please verify your current PIN.");
+    } else {
+      setOldPinInput("");
+      setNewPinInput("");
+      setConfirmPinInput("");
+      setPinError("");
+    }
   };
 
   const handleSaveConfig = () => {
@@ -320,6 +356,7 @@ export default function SettingsPage() {
             { id: "job_domains", label: "Job Roles & Domains", icon: Briefcase, badge: "Roles" },
             { id: "pipeline", label: "Placement Pipeline Stages", icon: Layers },
             { id: "calling", label: "Telecalling Parameters", icon: PhoneCall },
+            { id: "security", label: "Security & Access PIN", icon: KeyRound, badge: "PIN" },
             { id: "notifications", label: "Alerts & Notifications", icon: Bell },
           ].map((item) => {
             const Icon = item.icon;
@@ -971,6 +1008,114 @@ export default function SettingsPage() {
                     />
                     <span>Auto-advance to next candidate after saving call</span>
                   </label>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================
+              TAB: SECURITY ACCESS PIN
+          ======================================================== */}
+          {activeTab === "security" && (
+            <div className="space-y-6 text-xs">
+              <div className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                    <KeyRound className="w-5 h-5 text-purple-600" />
+                    <span>Executive Security & 4-Digit Access PIN</span>
+                  </h3>
+                  <p className="text-slate-500 text-[11px] mt-0.5">
+                    Protect Owner and Admin management controls from unauthorized telecaller access.
+                  </p>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 self-start sm:self-auto">
+                  <Shield className="w-3.5 h-3.5 text-purple-600" />
+                  <span>PIN Protection Active</span>
+                </span>
+              </div>
+
+              {/* Security PIN Change Form Card */}
+              <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-5 sm:p-6 space-y-5">
+                <div className="flex items-start gap-3 p-3.5 bg-purple-50/70 border border-purple-200 rounded-xl">
+                  <Shield className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-xs text-purple-900">How PIN Protection Works</h4>
+                    <p className="text-[11px] text-purple-800 leading-relaxed mt-0.5">
+                      Telecallers only have access to the calling floor desk. When anyone clicks on the <strong>Owner</strong> or <strong>Admin</strong> button in the sidebar, this 4-digit PIN is strictly required to unlock management powers.
+                    </p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleChangePin} className="space-y-4 max-w-md">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Current 4-Digit Security PIN: <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      required
+                      placeholder="Enter existing PIN (default: 7708)"
+                      value={oldPinInput}
+                      onChange={(e) => setOldPinInput(e.target.value.replace(/\D/g, ""))}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-mono tracking-widest outline-none focus:ring-2 focus:ring-purple-600"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        New 4-Digit PIN: <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={4}
+                        required
+                        placeholder="e.g. 7708"
+                        value={newPinInput}
+                        onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, ""))}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-mono tracking-widest outline-none focus:ring-2 focus:ring-purple-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        Confirm New PIN: <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={4}
+                        required
+                        placeholder="Re-enter new PIN"
+                        value={confirmPinInput}
+                        onChange={(e) => setConfirmPinInput(e.target.value.replace(/\D/g, ""))}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-mono tracking-widest outline-none focus:ring-2 focus:ring-purple-600"
+                      />
+                    </div>
+                  </div>
+
+                  {pinError && (
+                    <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-300 rounded-xl text-rose-700 text-xs font-bold animate-in fade-in">
+                      <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>{pinError}</span>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition-all"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Update Security PIN</span>
+                    </button>
+                  </div>
+                </form>
+
+                <div className="pt-3 border-t border-slate-200/80 text-[11px] text-slate-500">
+                  <p>
+                    💡 <strong>Default Master PIN:</strong> The factory default PIN is <strong className="font-mono text-purple-700">7708</strong>. Changes are saved instantly to the local system storage.
+                  </p>
                 </div>
               </div>
             </div>

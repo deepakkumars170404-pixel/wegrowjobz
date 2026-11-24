@@ -143,6 +143,13 @@ interface CRMContextType {
     auditNote?: string,
     auditRating?: number
   ) => Promise<void>;
+
+  // Security PIN & Access Protection
+  isManagementUnlocked: boolean;
+  verifySecurityPin: (pin: string) => boolean;
+  updateSecurityPin: (oldPin: string, newPin: string) => { success: boolean; error?: string };
+  lockManagementSession: () => void;
+  unlockManagementSession: () => void;
 }
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -163,6 +170,23 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [telecallers, setTelecallers] = useState<Telecaller[]>(initialTelecallers);
   const [users, setUsers] = useState<AppUser[]>(initialUsers);
   const [activeUserRole, setActiveUserRole] = useState<string>("Owner");
+  const [securityPin, setSecurityPin] = useState<string>("7708");
+  const [isManagementUnlocked, setIsManagementUnlocked] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("wegrow_security_pin");
+      if (stored && /^\d{4}$/.test(stored)) {
+        setSecurityPin(stored);
+      } else {
+        localStorage.setItem("wegrow_security_pin", "7708");
+      }
+      const sessionUnlocked = sessionStorage.getItem("wegrow_mgmt_unlocked");
+      if (sessionUnlocked === "true") {
+        setIsManagementUnlocked(true);
+      }
+    } catch {}
+  }, []);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const dismissToast = useCallback((id: string) => {
@@ -1843,6 +1867,62 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const verifySecurityPin = useCallback((pin: string): boolean => {
+    const activePin = securityPin || "7708";
+    if (pin.trim() === activePin.trim()) {
+      setIsManagementUnlocked(true);
+      try {
+        sessionStorage.setItem("wegrow_mgmt_unlocked", "true");
+      } catch {}
+      return true;
+    }
+    return false;
+  }, [securityPin]);
+
+  const updateSecurityPin = useCallback(
+    (oldPin: string, newPin: string): { success: boolean; error?: string } => {
+      const activePin = securityPin || "7708";
+      if (oldPin.trim() !== activePin.trim()) {
+        return { success: false, error: "Current PIN is incorrect." };
+      }
+      if (!/^\d{4}$/.test(newPin.trim())) {
+        return { success: false, error: "New PIN must be exactly 4 numeric digits." };
+      }
+      const clean = newPin.trim();
+      setSecurityPin(clean);
+      try {
+        localStorage.setItem("wegrow_security_pin", clean);
+      } catch {}
+      showToast({
+        type: "success",
+        title: "Security PIN Updated",
+        message: "Management access PIN updated successfully.",
+      });
+      return { success: true };
+    },
+    [securityPin, showToast]
+  );
+
+  const lockManagementSession = useCallback(() => {
+    setIsManagementUnlocked(false);
+    try {
+      sessionStorage.removeItem("wegrow_mgmt_unlocked");
+    } catch {}
+    setActiveUserRole("Telecaller");
+    showToast({
+      type: "info",
+      title: "Session Locked",
+      message: "Switched to Telecaller Desk. Enter 4-digit PIN to access Owner/Admin.",
+    });
+  }, [showToast]);
+
+  const unlockManagementSession = useCallback(() => {
+    setIsManagementUnlocked(true);
+    try {
+      sessionStorage.setItem("wegrow_mgmt_unlocked", "true");
+    } catch {}
+  }, []);
+
   return (
     <CRMContext.Provider
       value={{
@@ -1878,7 +1958,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setTelephonyMode,
         refreshTelephonyStatus,
         reconnectTelephony,
-                addLead,
+        addLead,
         addLeadsBulk,
         updateLead,
         updateLeadStatus,
@@ -1900,6 +1980,11 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         distributeLeadsBulk,
         reassignStaffLeads,
         auditCallRecord,
+        isManagementUnlocked,
+        verifySecurityPin,
+        updateSecurityPin,
+        lockManagementSession,
+        unlockManagementSession,
       }}
     >
       {children}

@@ -16,10 +16,12 @@ import {
   Headphones,
   Settings,
   GitBranch,
+  Lock,
 } from "lucide-react";
 import { WeGrowLogo } from "@/components/shared/WeGrowLogo";
 import { useCRM } from "@/context/CRMContext";
 import { cn } from "@/lib/utils";
+import { SecurityPinModal } from "@/components/shared/SecurityPinModal";
 
 interface SidebarProps {
   isMobileOpen?: boolean;
@@ -46,7 +48,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const { followUps, activeUserRole, setActiveUserRole } = useCRM();
+  const {
+    followUps,
+    activeUserRole,
+    setActiveUserRole,
+    isManagementUnlocked,
+    lockManagementSession,
+  } = useCRM();
+
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pinTargetRole, setPinTargetRole] = useState<"Owner" | "Admin">("Owner");
+
+  const handleSelectRole = (target: "Owner" | "Admin" | "Telecaller") => {
+    if (target === "Telecaller") {
+      setActiveUserRole("Telecaller");
+      return;
+    }
+
+    if (isManagementUnlocked) {
+      setActiveUserRole(target);
+    } else {
+      setPinTargetRole(target);
+      setIsPinModalOpen(true);
+    }
+  };
 
   // Badges calculation
   const pendingFollowUpCount = followUps.filter(
@@ -190,35 +215,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="grid grid-cols-3 gap-1 bg-slate-200/60 p-1 rounded-lg text-center">
                 <button
                   type="button"
-                  onClick={() => setActiveUserRole("Owner")}
+                  onClick={() => handleSelectRole("Owner")}
                   className={cn(
                     "flex items-center justify-center gap-1 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer",
                     isOwner
                       ? "bg-white text-blue-900 shadow-xs font-bold"
                       : "text-slate-600 hover:text-slate-900"
                   )}
-                  title="Executive Owner & Management View"
+                  title="Executive Owner & Management View (Requires PIN)"
                 >
                   <Shield className="w-3 h-3 text-blue-600 shrink-0" />
                   <span>Owner</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveUserRole("Admin")}
+                  onClick={() => handleSelectRole("Admin")}
                   className={cn(
                     "flex items-center justify-center gap-1 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer",
                     isAdmin
                       ? "bg-white text-purple-900 shadow-xs font-bold"
                       : "text-slate-600 hover:text-slate-900"
                   )}
-                  title="Supervisor Admin Floor & Allocation View"
+                  title="Supervisor Admin Floor & Allocation View (Requires PIN)"
                 >
                   <UserCheck className="w-3 h-3 text-purple-600 shrink-0" />
                   <span>Admin</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveUserRole("Telecaller")}
+                  onClick={() => handleSelectRole("Telecaller")}
                   className={cn(
                     "flex items-center justify-center gap-1 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer",
                     !isManagement
@@ -231,6 +256,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span>Caller</span>
                 </button>
               </div>
+
+              {/* 🔒 Lock Management Desk Button */}
+              {isManagement && (
+                <button
+                  type="button"
+                  onClick={lockManagementSession}
+                  className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/90 rounded-lg transition-all cursor-pointer shadow-2xs"
+                  title="Lock management session and return to Telecaller desk"
+                >
+                  <Lock className="w-3 h-3 text-rose-600 shrink-0" />
+                  <span>Lock Management Desk</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -324,6 +362,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       </aside>
+
+      {/* 4-Digit Executive Security PIN Modal */}
+      <SecurityPinModal
+        isOpen={isPinModalOpen}
+        onClose={() => setIsPinModalOpen(false)}
+        targetRole={pinTargetRole}
+        onSuccess={() => setActiveUserRole(pinTargetRole)}
+      />
     </>
   );
 };
