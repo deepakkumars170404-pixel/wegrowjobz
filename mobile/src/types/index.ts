@@ -44,7 +44,7 @@ export const WEGROW_ADMIN_MEMBERS = [
   "Thavabalan",
 ] as const;
 
-export type StaffMember = (typeof WEGROW_STAFF_MEMBERS)[number];
+export type StaffMember = string;
 
 export type CallDisposition =
   | "Interested"

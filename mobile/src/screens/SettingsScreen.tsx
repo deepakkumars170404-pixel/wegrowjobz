@@ -17,12 +17,15 @@ import { AppSettings, WEGROW_STAFF_MEMBERS } from "../types";
 
 export const SettingsScreen: React.FC = () => {
   const [callerName, setCallerName] = useState("Muthumeena");
+  const [staffList, setStaffList] = useState<string[]>(["Muthumeena"]);
   const [currentPin, setCurrentPin] = useState("1234");
   const [localRecording, setLocalRecording] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     (async () => {
+      const list = await StorageService.getStaffMembers();
+      if (list && list.length > 0) setStaffList(list);
       const s = await StorageService.getSettings();
       const staff = s.callerName || "Muthumeena";
       if (s.callerName) setCallerName(s.callerName);
@@ -75,7 +78,7 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.label}>TELECALLER NAME (SELECT OR TYPE)</Text>
         </View>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-          {WEGROW_STAFF_MEMBERS.map((staff) => {
+          {staffList.map((staff) => {
             const isSel = callerName === staff;
             return (
               <TouchableOpacity

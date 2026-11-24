@@ -12,6 +12,7 @@ const KEYS = {
   APP_MODE: "@wegrow_app_mode",
   STAFF_AVATARS: "@wegrow_staff_avatars",
   STAFF_PASSWORDS: "@wegrow_staff_passwords",
+  STAFF_MEMBERS: "@wegrow_staff_members_dynamic",
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -372,12 +373,42 @@ export const StorageService = {
     } catch {}
   },
 
+  // Dynamic Staff Members List
+  async getStaffMembers(): Promise<string[]> {
+    try {
+      const data = await AsyncStorage.getItem(KEYS.STAFF_MEMBERS);
+      if (data) {
+        const list = JSON.parse(data);
+        if (Array.isArray(list) && list.length > 0) {
+          return Array.from(new Set(["Muthumeena", ...list]));
+        }
+      }
+    } catch {}
+    return ["Muthumeena"];
+  },
+
+  async saveStaffMembers(members: string[]): Promise<void> {
+    try {
+      const clean = Array.from(new Set(members.filter(Boolean)));
+      await AsyncStorage.setItem(KEYS.STAFF_MEMBERS, JSON.stringify(clean));
+    } catch {}
+  },
+
+  async addStaffMember(name: string): Promise<string[]> {
+    const current = await StorageService.getStaffMembers();
+    const trimmed = name.trim();
+    if (!trimmed) return current;
+    const updated = Array.from(new Set([...current, trimmed]));
+    await StorageService.saveStaffMembers(updated);
+    return updated;
+  },
+
   // Staff Personal Login Passwords / PINs
   async getStaffPasswords(): Promise<Record<string, string>> {
     const defaults: Record<string, string> = {
       Muthumeena: "1234",
       "Gopinath (HR)": "5678",
-      Vijayakumar: "5678",
+      Vijayakumar: "9944",
       Thavabalan: "7708",
       Deepak: "1704",
     };

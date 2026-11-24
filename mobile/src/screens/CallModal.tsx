@@ -88,6 +88,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   const [recordingFound, setRecordingFound] = useState<string | undefined>(recordingPath);
 
   const [callerName, setCallerName] = useState<StaffMember>("Muthumeena");
+  const [staffList, setStaffList] = useState<string[]>(["Muthumeena"]);
   const [candidateName, setCandidateName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [startTimeStr, setStartTimeStr] = useState("");
@@ -168,9 +169,12 @@ export const CallModal: React.FC<CallModalProps> = ({
     });
 
   useEffect(() => {
+    StorageService.getStaffMembers().then((list) => {
+      if (list && list.length > 0) setStaffList(list);
+    });
     (async () => {
       const s = await StorageService.getSettings();
-      if (s.callerName && (WEGROW_STAFF_MEMBERS as readonly string[]).includes(s.callerName)) {
+      if (s.callerName) {
         setCallerName(s.callerName as StaffMember);
       }
     })();
@@ -437,7 +441,7 @@ export const CallModal: React.FC<CallModalProps> = ({
                 </Text>
               </View>
               <View style={styles.staffChipsRow}>
-                {WEGROW_STAFF_MEMBERS.map((staff) => {
+                {staffList.map((staff) => {
                   const isSelected = callerName === staff;
                   return (
                     <TouchableOpacity

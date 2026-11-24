@@ -11,10 +11,14 @@ interface StaffSelectorBarProps {
 
 export const StaffSelectorBar: React.FC<StaffSelectorBarProps> = ({ onStaffChanged }) => {
   const [activeStaff, setActiveStaff] = useState<StaffMember>("Muthumeena");
+  const [staffList, setStaffList] = useState<string[]>(["Muthumeena"]);
 
   useEffect(() => {
+    StorageService.getStaffMembers().then((list) => {
+      if (list && list.length > 0) setStaffList(list);
+    });
     StorageService.getSettings().then((s) => {
-      if (s.callerName && (WEGROW_STAFF_MEMBERS as readonly string[]).includes(s.callerName)) {
+      if (s.callerName) {
         setActiveStaff(s.callerName as StaffMember);
       }
     });
@@ -33,7 +37,7 @@ export const StaffSelectorBar: React.FC<StaffSelectorBarProps> = ({ onStaffChang
     <View style={styles.container}>
       <View style={styles.labelRow}>
         <Smartphone size={14} color="#2563EB" style={{ marginRight: 5 }} />
-        <Text style={styles.label}>STAFF ON DUTY (1 PHONE / 5 STAFF):</Text>
+        <Text style={styles.label}>STAFF ON DUTY (1 PHONE / ALL STAFF):</Text>
         <Text style={styles.activePill}>{activeStaff}</Text>
       </View>
       <ScrollView
@@ -41,7 +45,7 @@ export const StaffSelectorBar: React.FC<StaffSelectorBarProps> = ({ onStaffChang
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollList}
       >
-        {WEGROW_STAFF_MEMBERS.map((staff) => {
+        {staffList.map((staff) => {
           const isSelected = activeStaff === staff;
           return (
             <TouchableOpacity

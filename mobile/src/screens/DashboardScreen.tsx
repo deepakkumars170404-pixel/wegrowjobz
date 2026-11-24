@@ -45,6 +45,7 @@ export const DashboardScreen: React.FC = () => {
   const [staffFilter, setStaffFilter] = useState<string>("All");
   const [statusFilter, setStatusFilter] = useState<"All" | "Attended" | "Not Attended">("All");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [staffList, setStaffList] = useState<string[]>(["Muthumeena"]);
 
   const parseCallDurationSec = (c: {
     duration?: string;
@@ -108,6 +109,9 @@ export const DashboardScreen: React.FC = () => {
 
   const loadData = useCallback(async () => {
     try {
+      StorageService.getStaffMembers().then((list) => {
+        if (list && list.length > 0) setStaffList(list);
+      }).catch(() => {});
       const result = await ApiService.fetchAllCalls();
       if (result.calls) {
         setAllCalls(result.calls);
@@ -496,7 +500,7 @@ export const DashboardScreen: React.FC = () => {
               {/* KPI 5: Active Telecaller Staff */}
               <View style={[styles.kpiCard, styles.kpiCardPurple]}>
                 <Text style={[styles.kpiLabel, { color: "#3730A3" }]}>TELECALLER TEAM</Text>
-                <Text style={styles.kpiValuePurple}>{WEGROW_STAFF_MEMBERS.length} Active</Text>
+                <Text style={styles.kpiValuePurple}>{staffList.length} Active</Text>
                 <Text style={styles.kpiSubPurple}>Online & Synced</Text>
               </View>
             </ScrollView>
@@ -522,7 +526,7 @@ export const DashboardScreen: React.FC = () => {
                   </Text>
                 </TouchableOpacity>
 
-                {WEGROW_STAFF_MEMBERS.map((staff) => {
+                {staffList.map((staff) => {
                   const count = allCalls.filter((c) => (c.callerName || "").toLowerCase().includes(staff.toLowerCase())).length;
                   const isSelected = staffFilter === staff;
                   return (

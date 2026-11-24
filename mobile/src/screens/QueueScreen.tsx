@@ -14,6 +14,7 @@ import {
 import { THEME } from "../constants/theme";
 import { Lead, WEGROW_STAFF_MEMBERS, AppMode } from "../types";
 import { ApiService } from "../services/api";
+import { StorageService } from "../services/storage";
 import { TelephonyService } from "../services/telephony";
 import {
   Phone,
@@ -45,8 +46,12 @@ export const QueueScreen: React.FC<QueueScreenProps> = ({ onOpenCallModal, appMo
   const [priorityFilter, setPriorityFilter] = useState<"All" | "Hot" | "Warm" | "Follow-up">("All");
   const [selectedStaff, setSelectedStaff] = useState<string>("All");
   const [sortBy, setSortBy] = useState<"upcoming" | "newest" | "oldest">("upcoming");
+  const [staffList, setStaffList] = useState<string[]>(["Muthumeena"]);
 
   const loadQueue = useCallback(async () => {
+    StorageService.getStaffMembers().then((list: string[]) => {
+      if (list && list.length > 0) setStaffList(list);
+    }).catch(() => {});
     setErrorMsg(null);
     const result = await ApiService.fetchTodayQueue();
     if (result.leads) {
@@ -430,7 +435,7 @@ export const QueueScreen: React.FC<QueueScreenProps> = ({ onOpenCallModal, appMo
             </Text>
           </TouchableOpacity>
 
-          {WEGROW_STAFF_MEMBERS.map((staff) => {
+          {staffList.map((staff) => {
             const count = leads.filter((l) =>
               (l.assignedCaller || "").toLowerCase().includes(staff.toLowerCase())
             ).length;

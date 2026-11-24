@@ -842,4 +842,74 @@ export const ApiService = {
       return { hasUpdate: false };
     }
   },
+
+  async syncStaffMembers(): Promise<string[]> {
+    const cached = await StorageService.getStaffMembers();
+    const staffSet = new Set<string>(cached);
+
+    // 1. Try fetching from server /api/staff
+    try {
+      const baseUrl = await this.getBaseUrl();
+      const candidateUrls = [
+        baseUrl ? `${baseUrl}/api/staff` : "",
+        "http://192.168.29.60:3001/api/staff",
+      ].filter(Boolean);
+
+      for (const targetUrl of candidateUrls) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3500);
+          const res = await fetch(targetUrl, {
+            signal: controller.signal,
+            headers: { "Cache-Control": "no-cache" },
+          });
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && Array.isArray(data.staffNames)) {
+              data.staffNames.forEach((n: string) => {
+                if (n && typeof n === "string") staffSet.add(n.trim());
+              });
+            }
+            if (data && Array.isArray(data.telecallers)) {
+              for (const t of data.telecallers) {
+                if (t.name) staffSet.add(t.name.trim());
+                if (t.name && t.password) {
+                  await StorageService.saveStaffPassword(t.name.trim(), t.password);
+                }
+                if (t.name && t.avatar) {
+                  await StorageService.saveStaffAvatar(t.name.trim(), t.avatar);
+                }
+              }
+            }
+            break;
+          }
+        } catch {}
+      }
+    } catch {}
+
+    // 2. Also check Supabase jobz_leads for any assigned telecallers
+    if (isSupabaseReady() && supabaseMobile) {
+      try {
+        const { data, error } = await supabaseMobile
+          .from("jobz_leads")
+          .select("assigned_caller")
+          .not("assigned_caller", "is", null)
+          .limit(100);
+
+        if (!error && data) {
+          data.forEach((row: any) => {
+            const name = (row.assigned_caller || "").trim();
+            if (name && name.toLowerCase() !== "unassigned") {
+              staffSet.add(name);
+            }
+          });
+        }
+      } catch {}
+    }
+
+    const merged = Array.from(staffSet);
+    await StorageService.saveStaffMembers(merged);
+    return merged;
+  },
 };

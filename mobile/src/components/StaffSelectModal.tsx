@@ -14,6 +14,7 @@ import { UserCheck, Check, Play, Shield, Lock, KeyRound, Camera } from "lucide-r
 import { WEGROW_STAFF_MEMBERS, StaffMember } from "../types";
 import { THEME } from "../constants/theme";
 import { StorageService } from "../services/storage";
+import { ApiService } from "../services/api";
 
 interface StaffSelectModalProps {
   visible: boolean;
@@ -31,19 +32,42 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
   onCancel,
 }) => {
   const [selected, setSelected] = useState<StaffMember>(currentStaff || "Muthumeena");
+  const [staffList, setStaffList] = useState<string[]>(["Muthumeena"]);
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState(false);
   const [avatarsMap, setAvatarsMap] = useState<Record<string, string>>({});
   const [passwordsMap, setPasswordsMap] = useState<Record<string, string>>({});
   const [photoUrlInput, setPhotoUrlInput] = useState("");
   const [isPhotoEditOpen, setIsPhotoEditOpen] = useState(false);
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [newStaffName, setNewStaffName] = useState("");
 
   useEffect(() => {
     StorageService.getStaffAvatars().then(setAvatarsMap);
     StorageService.getStaffPasswords().then(setPasswordsMap);
+    StorageService.getStaffMembers().then((list) => {
+      if (list && list.length > 0) setStaffList(list);
+    });
+
+    // Automatically sync live staff from server / database
+    ApiService.syncStaffMembers().then((latest) => {
+      if (latest && latest.length > 0) setStaffList(latest);
+    }).catch(() => {});
+
     setPin("");
     setPinError(false);
   }, [visible]);
+
+  const handleAddNewStaff = async () => {
+    if (!newStaffName.trim()) return;
+    const name = newStaffName.trim();
+    const updated = await StorageService.addStaffMember(name);
+    setStaffList(updated);
+    setSelected(name);
+    setIsAddingNew(false);
+    setNewStaffName("");
+    Alert.alert("Enrolled", `${name} added to telecaller list! Default PIN is 1234.`);
+  };
 
   const handleSavePhoto = async () => {
     if (!photoUrlInput.trim()) return;
@@ -82,7 +106,7 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
 
           {/* Staff Members List */}
           <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-            {WEGROW_STAFF_MEMBERS.map((staff) => {
+            {staffList.map((staff) => {
               const isSelected = selected === staff;
               const customPhoto = avatarsMap[staff];
 
@@ -133,6 +157,44 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
                 </TouchableOpacity>
               );
             })}
+
+            {/* Quick In-App Enroll New Staff Button */}
+            {isAddingNew ? (
+              <View style={{ backgroundColor: "#EFF6FF", padding: 12, borderRadius: 14, marginTop: 8, borderWidth: 1, borderColor: "#BFDBFE" }}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#1E40AF", marginBottom: 6 }}>
+                  Enter New Telecaller Name:
+                </Text>
+                <TextInput
+                  style={{ backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#93C5FD", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, fontWeight: "600", color: "#0F172A" }}
+                  placeholder="e.g. Suresh, Priya, Anand"
+                  placeholderTextColor="#94A3B8"
+                  value={newStaffName}
+                  onChangeText={setNewStaffName}
+                  autoFocus
+                />
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: "#2563EB", paddingVertical: 8, borderRadius: 8, alignItems: "center" }}
+                    onPress={handleAddNewStaff}
+                  >
+                    <Text style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "700" }}>Enroll Telecaller</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ backgroundColor: "#E2E8F0", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, alignItems: "center" }}
+                    onPress={() => setIsAddingNew(false)}
+                  >
+                    <Text style={{ color: "#475569", fontSize: 11, fontWeight: "600" }}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 10, marginTop: 6, borderRadius: 12, borderWidth: 1, borderColor: "#CBD5E1", borderStyle: "dashed" }}
+                onPress={() => setIsAddingNew(true)}
+              >
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#2563EB" }}>+ Add New Telecaller Profile</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
 
           {/* Quick Photo Change Box */}

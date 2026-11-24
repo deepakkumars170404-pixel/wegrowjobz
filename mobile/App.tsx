@@ -84,6 +84,9 @@ export default function App() {
   // Initialize App Mode, Settings and Attendance Gate
   useEffect(() => {
     (async () => {
+      // Sync dynamic staff members from server / Supabase
+      ApiService.syncStaffMembers().catch(() => {});
+
       const savedMode = await StorageService.getAppMode();
       setAppMode(savedMode);
 

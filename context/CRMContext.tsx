@@ -413,6 +413,16 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .catch(() => {});
 
+    // Sync telecallers from server storage
+    fetch("/api/staff")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.telecallers) && data.telecallers.length > 0) {
+          setTelecallers(data.telecallers);
+        }
+      })
+      .catch(() => {});
+
     // Supabase Cloud Realtime Channel for instant live updates across devices (Jobz tables)
     let channel: any = null;
     const sb = supabase;
@@ -1774,6 +1784,13 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
       return updated;
     });
+
+    // Persist new telecaller to server storage for mobile app sync
+    fetch("/api/staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newCaller),
+    }).catch(() => {});
 
     showToast({
       type: "success",
