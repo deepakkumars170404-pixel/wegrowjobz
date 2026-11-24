@@ -192,6 +192,10 @@ export interface Telecaller {
   mustChangePassword?: boolean;
   lastLoginAt?: string;
   isFrozen?: boolean;
+  languages?: string[];
+  specialization?: string;
+  bio?: string;
+  whatsapp?: string;
 }
 
 export interface Course {
@@ -226,4 +230,8 @@ export interface AppUser {
   mustChangePassword?: boolean;
   lastLoginAt?: string;
   isFrozen?: boolean;
+  languages?: string[];
+  specialization?: string;
+  bio?: string;
+  whatsapp?: string;
 }

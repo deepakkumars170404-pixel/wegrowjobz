@@ -53,6 +53,21 @@ export const SettingsScreen: React.FC = () => {
     await StorageService.saveSettings(updated);
     if (currentPin.trim()) {
       await StorageService.saveStaffPassword(callerName.trim(), currentPin.trim());
+      // Also sync updated password to server /api/staff if connected
+      try {
+        const baseUrl = await ApiService.getBaseUrl();
+        const candidateUrls = [
+          baseUrl ? `${baseUrl}/api/staff` : "",
+          "http://192.168.29.60:3001/api/staff",
+        ].filter(Boolean);
+        for (const url of candidateUrls) {
+          fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: callerName.trim(), password: currentPin.trim() }),
+          }).catch(() => {});
+        }
+      } catch {}
     }
     Alert.alert("Saved ✓", "WeGrow Jobz settings & staff password updated successfully!");
   };

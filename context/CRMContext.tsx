@@ -65,6 +65,7 @@ interface CRMContextType {
     error?: string;
   };
   updateUserPassword: (userId: string, newPassword: string, oldPassword?: string) => { success: boolean; error?: string };
+  updateUserProfile: (userId: string, data: Partial<AppUser>) => { success: boolean; error?: string };
   triggerUserPasswordReset: (userId: string) => { success: boolean };
   toggleUserFreeze: (userId: string) => { success: boolean; isFrozen: boolean };
   setSelfNewPassword: (userId: string, newPassword: string) => { success: boolean; error?: string };
@@ -2275,6 +2276,68 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [users, currentUser, showToast]
   );
 
+  const updateUserProfile = useCallback(
+    (userId: string, data: Partial<AppUser>): { success: boolean; error?: string } => {
+      const targetUser = users.find(
+        (u) => u.id === userId || u.name.toLowerCase() === userId.toLowerCase()
+      );
+
+      if (!targetUser) {
+        return { success: false, error: "Staff account not found." };
+      }
+
+      const updatedUser: AppUser = {
+        ...targetUser,
+        ...data,
+      };
+
+      const updatedUsers = users.map((u) => (u.id === targetUser.id ? updatedUser : u));
+      setUsers(updatedUsers);
+
+      if (currentUser && currentUser.id === targetUser.id) {
+        setCurrentUser(updatedUser);
+      }
+
+      setTelecallers((prev) =>
+        prev.map((t) =>
+          t.name.toLowerCase() === targetUser.name.toLowerCase() || t.id.toLowerCase() === targetUser.id.toLowerCase()
+            ? {
+                ...t,
+                name: updatedUser.name || t.name,
+                phone: updatedUser.phone || t.phone,
+                email: updatedUser.email || t.email,
+                avatar: updatedUser.avatar || t.avatar,
+                languages: updatedUser.languages || t.languages,
+                specialization: updatedUser.specialization || t.specialization,
+                bio: updatedUser.bio || t.bio,
+                whatsapp: updatedUser.whatsapp || t.whatsapp,
+              }
+            : t
+        )
+      );
+
+      try {
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updatedUsers));
+      } catch {}
+
+      // Persist to server /api/staff
+      fetch("/api/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedUser),
+      }).catch(() => {});
+
+      showToast({
+        type: "success",
+        title: "Profile Updated",
+        message: `Your profile details have been saved successfully.`,
+      });
+
+      return { success: true };
+    },
+    [users, currentUser, showToast]
+  );
+
   const logoutUser = useCallback(() => {
     const defaultCaller = users.find((u) => u.role === "Telecaller") || users[users.length - 1];
     if (defaultCaller) {
@@ -2306,6 +2369,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUser,
         loginAsUser,
         updateUserPassword,
+        updateUserProfile,
         triggerUserPasswordReset,
         toggleUserFreeze,
         setSelfNewPassword,

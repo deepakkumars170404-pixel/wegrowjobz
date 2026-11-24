@@ -15,9 +15,12 @@ import {
   UserCheck,
   Check,
   Lock,
+  User,
+  Settings,
 } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
 import { SecurityPinModal } from "@/components/shared/SecurityPinModal";
+import { UserProfileModal } from "@/components/shared/UserProfileModal";
 import { AppUser } from "@/types";
 
 interface HeaderProps {
@@ -43,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authTargetRole, setAuthTargetRole] = useState<"Owner" | "Admin" | "Telecaller">("Owner");
   const [authTargetUser, setAuthTargetUser] = useState<AppUser | null>(null);
@@ -213,11 +217,35 @@ export const Header: React.FC<HeaderProps> = ({
           <span>Add Candidate</span>
         </button>
 
+        {/* My Profile Button (Zoho CRM Style) */}
+        <button
+          onClick={() => setIsProfileModalOpen(true)}
+          className="flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl transition-all shadow-2xs group cursor-pointer"
+          title="My Profile, Password & Settings (Zoho CRM Style)"
+        >
+          <div className="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 overflow-hidden flex items-center justify-center font-bold text-blue-700 text-xs shrink-0">
+            {currentUser?.avatar ? (
+              <img src={currentUser.avatar} alt={currentUser.name} className="w-full h-full object-cover" />
+            ) : (
+              (currentUser?.name || "ME").slice(0, 2).toUpperCase()
+            )}
+          </div>
+          <div className="text-left hidden sm:block">
+            <span className="block text-xs font-bold text-slate-800 leading-tight">
+              {currentUser?.name || "My Profile"}
+            </span>
+            <span className="block text-[10px] text-slate-400 font-semibold leading-none">
+              {currentUser?.role || "Staff"}
+            </span>
+          </div>
+          <Settings className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 transition-colors" />
+        </button>
+
         {/* Role & Telecaller Switcher Dropdown */}
         <div className="relative" ref={roleDropdownRef}>
           <button
             onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition-all shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition-all shadow-xs"
           >
             {isOwner ? (
               <>
@@ -234,7 +262,21 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {isRoleDropdownOpen && (
-            <div className="absolute right-0 top-full mt-1.5 w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in slide-in-from-top-1">
+            <div className="absolute right-0 top-full mt-1.5 w-60 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in slide-in-from-top-1">
+              {/* My Profile Quick Option */}
+              <button
+                onClick={() => {
+                  setIsRoleDropdownOpen(false);
+                  setIsProfileModalOpen(true);
+                }}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50/70 transition-colors border-b border-slate-100"
+              >
+                <div className="flex items-center gap-2">
+                  <User className="w-3.5 h-3.5 text-blue-600" />
+                  <span>My Profile & Settings (Zoho CRM)</span>
+                </div>
+                <Settings className="w-3 h-3 text-blue-500" />
+              </button>
               <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 Management Roles
               </div>
@@ -340,6 +382,12 @@ export const Header: React.FC<HeaderProps> = ({
             setActiveUserRole(authTargetRole);
           }
         }}
+      />
+
+      {/* Zoho CRM Style My Profile & Settings Modal */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
       />
     </header>
   );
