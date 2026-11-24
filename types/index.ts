@@ -55,7 +55,7 @@ export interface Lead {
   phone: string;
   email: string;
   courseInterested: string;
-  leadSource: "Website" | "Facebook" | "Instagram" | "Walk-in" | "Referral" | "Phone" | "Google Ads" | "Job Search App" | "Job Portal" | "Excel Import";
+  leadSource: "Website" | "Facebook" | "Instagram" | "Walk-in" | "Referral" | "Phone" | "Google Ads" | "Job Search App" | "Job Portal" | "Excel Import" | "Google Sheet" | "Google Sheet Import";
   assignedCaller: string;
   priority: LeadPriority;
   status: LeadStatus;
