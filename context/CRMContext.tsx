@@ -188,7 +188,21 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (typeof window !== "undefined") {
       try {
         const stored = localStorage.getItem("wegrow_jobz_users_v2");
-        if (stored) return JSON.parse(stored);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            const seen = new Set<string>();
+            const deduped: AppUser[] = [];
+            for (const u of parsed) {
+              const key = (u.name || "").toLowerCase().trim();
+              if (key && !seen.has(key)) {
+                seen.add(key);
+                deduped.push(u);
+              }
+            }
+            return deduped;
+          }
+        }
       } catch {}
     }
     return initialUsers;
@@ -203,13 +217,25 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const storedUsers = localStorage.getItem("wegrow_jobz_users_v2");
       if (storedUsers) {
         const parsed = JSON.parse(storedUsers);
-        setUsers(parsed);
-        const sessionUserId = sessionStorage.getItem("wegrow_current_user_id");
-        if (sessionUserId) {
-          const found = parsed.find((u: AppUser) => u.id === sessionUserId);
-          if (found) {
-            setCurrentUser(found);
-            setActiveUserRole(found.role);
+        if (Array.isArray(parsed)) {
+          const seen = new Set<string>();
+          const deduped: AppUser[] = [];
+          for (const u of parsed) {
+            const key = (u.name || "").toLowerCase().trim();
+            if (key && !seen.has(key)) {
+              seen.add(key);
+              deduped.push(u);
+            }
+          }
+          localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(deduped));
+          setUsers(deduped);
+          const sessionUserId = sessionStorage.getItem("wegrow_current_user_id");
+          if (sessionUserId) {
+            const found = deduped.find((u: AppUser) => u.id === sessionUserId);
+            if (found) {
+              setCurrentUser(found);
+              setActiveUserRole(found.role);
+            }
           }
         }
       }
@@ -1661,7 +1687,31 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       joinedDate: "Today",
       lastActive: "Just now",
     };
-    setUsers((prev) => [...prev, newUser]);
+    setUsers((prev) => {
+      const existsIndex = prev.findIndex(
+        (u) => u.name.toLowerCase().trim() === userData.name.toLowerCase().trim()
+      );
+      let updated: AppUser[];
+      if (existsIndex >= 0) {
+        updated = [...prev];
+        updated[existsIndex] = { ...updated[existsIndex], ...newUser, id: updated[existsIndex].id };
+      } else {
+        updated = [...prev, newUser];
+      }
+      const seen = new Set<string>();
+      const deduped: AppUser[] = [];
+      for (const u of updated) {
+        const key = (u.name || "").toLowerCase().trim();
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          deduped.push(u);
+        }
+      }
+      try {
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(deduped));
+      } catch {}
+      return deduped;
+    });
     showToast({
       type: "success",
       title: "User Created",
@@ -1780,11 +1830,29 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       password: callerData.password || "1234",
     };
     setUsers((prev) => {
-      const updated = [...prev, newUser];
+      const existsIndex = prev.findIndex(
+        (u) => u.name.toLowerCase().trim() === callerData.name.toLowerCase().trim()
+      );
+      let updated: AppUser[];
+      if (existsIndex >= 0) {
+        updated = [...prev];
+        updated[existsIndex] = { ...updated[existsIndex], ...newUser, id: updated[existsIndex].id };
+      } else {
+        updated = [...prev, newUser];
+      }
+      const seen = new Set<string>();
+      const deduped: AppUser[] = [];
+      for (const u of updated) {
+        const key = (u.name || "").toLowerCase().trim();
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          deduped.push(u);
+        }
+      }
       try {
-        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updated));
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(deduped));
       } catch {}
-      return updated;
+      return deduped;
     });
 
     // Persist new telecaller to server storage for mobile app sync

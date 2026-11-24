@@ -239,7 +239,9 @@ export default function UsersRolesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {users.map((u) => (
+              {Array.from(
+                new Map(users.map((u) => [(u.name || "").toLowerCase().trim(), u])).values()
+              ).map((u) => (
                 <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-3">

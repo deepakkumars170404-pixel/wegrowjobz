@@ -88,7 +88,12 @@ export function SecurityPinModal({
 
   if (!isOpen) return null;
 
-  const selectedUser = users.find((u) => u.id === selectedUserId) || users[0];
+  // Deduplicate users by lowercase trimmed name so duplicate accounts never render
+  const uniqueUsers = Array.from(
+    new Map(users.map((u) => [(u.name || "").toLowerCase().trim(), u])).values()
+  );
+
+  const selectedUser = uniqueUsers.find((u) => u.id === selectedUserId) || uniqueUsers[0];
   const isSelectedFrozen = selectedUser?.isFrozen || selectedUser?.status === "Inactive";
 
   const handleKeypadPress = (val: string) => {
@@ -279,7 +284,7 @@ export function SecurityPinModal({
                 Select Staff Profile:
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-36 overflow-y-auto p-1 bg-slate-50 border border-slate-200/80 rounded-2xl scrollbar-thin">
-                {users.map((u) => {
+                {uniqueUsers.map((u) => {
                   const isSelected = u.id === selectedUserId;
                   const roleBadge = getRoleBadge(u.role);
                   const isFrozen = u.isFrozen || u.status === "Inactive";
