@@ -7,14 +7,64 @@ export const ApiService = {
   async getBaseUrl(): Promise<string> {
     const activeMode = await StorageService.getAppMode();
     const settings = await StorageService.getSettings();
-    let url = activeMode === "admission"
-      ? (settings.admissionServerUrl || "https://wegrowcrm.vercel.app")
-      : (settings.jobzServerUrl || "https://wegrowcrm.vercel.app");
+    if (activeMode === "jobz") {
+      // In Jobz CRM, Supabase Cloud handles 100% of data. Do not fallback to Admission Vercel URL.
+      const url = settings.jobzServerUrl || "";
+      if (!url || url.includes("wegrowcrm.vercel.app") || url.includes("192.168.1.41")) {
+        return "";
+      }
+      return url.endsWith("/") ? url.slice(0, -1) : url;
+    }
+    let url = settings.admissionServerUrl || "https://wegrowcrm.vercel.app";
     if (!url || url.includes("192.168.1.41")) {
       url = "https://wegrowcrm.vercel.app";
     }
     if (url.endsWith("/")) url = url.slice(0, -1);
     return url;
+  },
+
+  async getTodayStaffMetrics(callerName: string): Promise<{ totalCalls: number; spokenSeconds: number }> {
+    const today = new Date().toISOString().split("T")[0];
+    let totalCalls = 0;
+    let spokenSeconds = 0;
+
+    if (isSupabaseReady() && supabaseMobile) {
+      try {
+        const { data, error } = await supabaseMobile
+          .from("jobz_calls")
+          .select("duration_seconds, outcome")
+          .eq("call_date", today)
+          .ilike("caller_name", `%${callerName}%`);
+
+        if (!error && data && data.length > 0) {
+          const attended = data.filter(
+            (c: any) => (c.duration_seconds || 0) > 0 || c.outcome === "Attended Call"
+          );
+          totalCalls = attended.length;
+          spokenSeconds = data.reduce((sum: number, c: any) => sum + (c.duration_seconds || 0), 0);
+          return { totalCalls, spokenSeconds };
+        }
+      } catch (err) {
+        console.warn("Supabase getTodayStaffMetrics error:", err);
+      }
+    }
+
+    // Fallback: check local storage
+    try {
+      const history = await StorageService.getCallHistory();
+      const todayCalls = history.filter(
+        (c) =>
+          c.callDate === today &&
+          (!c.callerName || c.callerName.toLowerCase().includes(callerName.toLowerCase()))
+      );
+      const attended = todayCalls.filter(
+        (c) => (c.durationSeconds || 0) > 0 || c.outcome === "Attended Call"
+      );
+      totalCalls = attended.length;
+      spokenSeconds = todayCalls.reduce((sum, c) => sum + (c.durationSeconds || 0), 0);
+    } catch {}
+
+    return { totalCalls, spokenSeconds };
   },
 
   async fetchTodayQueue(): Promise<{ success: boolean; leads: Lead[]; error?: string }> {
@@ -120,53 +170,55 @@ export const ApiService = {
       }
     }
 
-    // 2. Try Local CRM Server Wi-Fi (Strict 2-second timeout to prevent 4G freezing)
+    // 2. Try Local CRM Server Wi-Fi (Only if baseUrl configured, with 2-second timeout)
     try {
       const baseUrl = await this.getBaseUrl();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-      const res = await fetch(`${baseUrl}/api/leads`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+      if (baseUrl && baseUrl.startsWith("http")) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch(`${baseUrl}/api/leads`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
 
-      if (res.ok) {
-        const data = await res.json();
-        const rawLeads: any[] = Array.isArray(data) ? data : data.leads || [];
-        const rawFu: any[] = Array.isArray(data.followUps) ? data.followUps : [];
+        if (res.ok) {
+          const data = await res.json();
+          const rawLeads: any[] = Array.isArray(data) ? data : data.leads || [];
+          const rawFu: any[] = Array.isArray(data.followUps) ? data.followUps : [];
 
-        const seenPhones = new Set<string>();
-        const dedupedLeads: Lead[] = [];
-        for (const l of rawLeads) {
-          const cleanPhone = (l.phone || "").replace(/\D/g, "").slice(-10);
-          const matchingFu = rawFu.find(
-            (fu: any) =>
-              fu.leadId === l.id ||
-              (fu.phone && String(fu.phone).replace(/\D/g, "").endsWith(cleanPhone))
-          );
+          const seenPhones = new Set<string>();
+          const dedupedLeads: Lead[] = [];
+          for (const l of rawLeads) {
+            const cleanPhone = (l.phone || "").replace(/\D/g, "").slice(-10);
+            const matchingFu = rawFu.find(
+              (fu: any) =>
+                fu.leadId === l.id ||
+                (fu.phone && String(fu.phone).replace(/\D/g, "").endsWith(cleanPhone))
+            );
 
-          const fuDate = l.nextFollowUpDate || (matchingFu ? matchingFu.followUpDate || matchingFu.scheduled_date : "") || "";
-          const fuTime = l.nextFollowUpTime || (matchingFu ? matchingFu.followUpTime || matchingFu.scheduled_time : "") || "";
+            const fuDate = l.nextFollowUpDate || (matchingFu ? matchingFu.followUpDate || matchingFu.scheduled_date : "") || "";
+            const fuTime = l.nextFollowUpTime || (matchingFu ? matchingFu.followUpTime || matchingFu.scheduled_time : "") || "";
 
-          const formattedLead: Lead = {
-            ...l,
-            nextFollowUpDate: fuDate,
-            nextFollowUpTime: fuTime,
-            stage: l.stage || (fuDate ? "Call Scheduled" : "Interested"),
-          };
+            const formattedLead: Lead = {
+              ...l,
+              nextFollowUpDate: fuDate,
+              nextFollowUpTime: fuTime,
+              stage: l.stage || (fuDate ? "Call Scheduled" : "Interested"),
+            };
 
-          const key = cleanPhone || l.id;
-          if (!seenPhones.has(key)) {
-            seenPhones.add(key);
-            dedupedLeads.push(formattedLead);
+            const key = cleanPhone || l.id;
+            if (!seenPhones.has(key)) {
+              seenPhones.add(key);
+              dedupedLeads.push(formattedLead);
+            }
           }
+          if (dedupedLeads.length > 0) {
+            await StorageService.saveCachedLeads(dedupedLeads);
+          }
+          return { success: true, leads: dedupedLeads };
         }
-        if (dedupedLeads.length > 0) {
-          await StorageService.saveCachedLeads(dedupedLeads);
-        }
-        return { success: true, leads: dedupedLeads };
       }
     } catch {}
 
@@ -181,24 +233,34 @@ export const ApiService = {
 
   async fetchAllCalls(): Promise<{ success: boolean; calls: CallRecord[]; error?: string }> {
     const collectedCalls: CallRecord[] = [];
-    const seenCallKeys = new Set<string>();
+    const seenSignatures = new Set<string>();
+
+    const makeCallSig = (phone?: string, date?: string, time?: string) => {
+      const cleanPhone = String(phone || "").replace(/\D/g, "").slice(-10);
+      const cleanDate = String(date || "").trim();
+      const cleanTime = String(time || "").replace(/[^0-9a-zA-Z]/g, "").toLowerCase();
+      return `${cleanPhone}_${cleanDate}_${cleanTime}`;
+    };
 
     const addUniqueCall = (c: CallRecord) => {
-      const cleanPhone = (c.phone || c.studentPhone || "").replace(/\D/g, "").slice(-10);
-      const key = c.id || `${cleanPhone}_${c.callDate || ""}_${c.callTime || ""}_${c.duration || c.formattedDuration || ""}`;
-      if (!seenCallKeys.has(key)) {
-        seenCallKeys.add(key);
+      const sig = makeCallSig(
+        c.phone || c.studentPhone,
+        c.callDate,
+        c.callTime || c.fromTime || c.callStartTime
+      );
+      const idKey = c.id || sig;
+      if (!seenSignatures.has(idKey) && (!sig || !seenSignatures.has(sig))) {
+        seenSignatures.add(idKey);
+        if (sig) seenSignatures.add(sig);
         collectedCalls.push(c);
       }
     };
 
-    // 1. First fetch directly from Supabase Cloud calls table (Mode aware: jobz_calls vs calls)
+    // 1. Fetch directly from Supabase Cloud (jobz_calls)
     if (isSupabaseReady() && supabaseMobile) {
       try {
         const activeMode = await StorageService.getAppMode();
         const callsTable = activeMode === "jobz" ? "jobz_calls" : "calls";
-        const leadsTable = activeMode === "jobz" ? "jobz_leads" : "leads";
-        const callsRel = activeMode === "jobz" ? "calls:jobz_calls(*)" : "calls(*)";
 
         const { data: dbCalls, error: cErr } = await supabaseMobile
           .from(callsTable)
@@ -208,15 +270,24 @@ export const ApiService = {
         if (!cErr && dbCalls && dbCalls.length > 0) {
           dbCalls.forEach((c: any) => {
             const rawDur = c.duration_seconds ?? c.durationSeconds;
-            const parsedDur = typeof rawDur === "number" ? rawDur : (typeof c.duration === "string" && c.duration.includes(":") ? c.duration.split(":").reduce((acc: number, time: string) => (60 * acc) + +time, 0) : 0);
-            const formatted = c.duration || `${Math.floor(parsedDur / 60).toString().padStart(2, "0")}:${(parsedDur % 60).toString().padStart(2, "0")}`;
+            const parsedDur =
+              typeof rawDur === "number"
+                ? rawDur
+                : typeof c.duration === "string" && c.duration.includes(":")
+                ? c.duration.split(":").reduce((acc: number, time: string) => 60 * acc + +time, 0)
+                : 0;
+            const formatted =
+              c.duration ||
+              `${Math.floor(parsedDur / 60)
+                .toString()
+                .padStart(2, "0")}:${(parsedDur % 60).toString().padStart(2, "0")}`;
             const timeVal = c.call_time || c.from_time || "";
             const dateVal = c.call_date || "";
 
             addUniqueCall({
-              id: c.id || `cr-${Date.now()}-${Math.random()}`,
+              id: c.id,
               leadId: c.lead_id || "",
-              studentName: c.student_name || "Student Inquiry",
+              studentName: c.student_name || "Candidate",
               phone: c.phone || "",
               studentPhone: c.phone || "",
               callerName: c.caller_name || "Staff",
@@ -252,127 +323,12 @@ export const ApiService = {
       } catch (sbCallsErr) {
         console.warn("Supabase fetch calls error:", sbCallsErr);
       }
-
-      // Also fetch leads with calls to catch any calls embedded in lead call history
-      try {
-        const activeMode = await StorageService.getAppMode();
-        const leadsTable = activeMode === "jobz" ? "jobz_leads" : "leads";
-        const callsRel = activeMode === "jobz" ? "calls:jobz_calls(*)" : "calls(*)";
-
-        const { data: dbLeads, error: lErr } = await supabaseMobile
-          .from(leadsTable)
-          .select(`*, ${callsRel}`)
-          .order("created_at", { ascending: false });
-
-        if (!lErr && dbLeads && dbLeads.length > 0) {
-          dbLeads.forEach((lead: any) => {
-            if (Array.isArray(lead.calls)) {
-              lead.calls.forEach((c: any) => {
-                const rawDur = c.duration_seconds ?? c.durationSeconds;
-                const parsedDur = typeof rawDur === "number" ? rawDur : 0;
-                const formatted = c.duration || "00:00";
-                addUniqueCall({
-                  id: c.id,
-                  leadId: lead.id,
-                  studentName: c.student_name || lead.student_name || "Student",
-                  phone: c.phone || lead.phone || "",
-                  studentPhone: lead.phone || c.phone || "",
-                  callerName: c.caller_name || lead.assigned_caller || "Staff",
-                  disposition: c.mindset || c.outcome || "Interested",
-                  outcome: c.outcome || (parsedDur > 0 ? "Attended Call" : "Not Attended Call"),
-                  mindset: c.mindset || c.outcome || "",
-                  durationSeconds: parsedDur,
-                  duration_seconds: parsedDur,
-                  formattedDuration: formatted,
-                  duration: formatted,
-                  qualification: c.qualification || lead.qualification || "",
-                  passedOutYear: c.passed_out_year || lead.passed_out_year || "",
-                  collegeName: c.college_name || lead.college_name || "",
-                  courseInterested: c.course_interested || lead.course_interested || "",
-                  studentCourse: lead.course_interested || "",
-                  callDate: c.call_date || "",
-                  callTime: c.call_time || "",
-                  fromTime: c.from_time || "",
-                  endTime: c.end_time || "",
-                  notes: c.remarks || "",
-                  remarks: c.remarks || "",
-                  timestamp: c.created_at ? new Date(c.created_at).getTime() : Date.now(),
-                  syncedToCrm: true,
-                });
-              });
-            }
-          });
-        }
-      } catch (sbLeadsErr) {
-        console.warn("Supabase fetch leads calls error:", sbLeadsErr);
-      }
     }
 
-    // 2. Fallback / Merge with CRM Server API (/api/leads) with strict 2-second timeout
+    // 2. Merge pending offline calls (so offline calls appear immediately)
     try {
-      const baseUrl = await this.getBaseUrl();
-      if (baseUrl && baseUrl.startsWith("http")) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
-        const res = await fetch(`${baseUrl}/api/leads`, {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        if (res.ok) {
-          const data = await res.json();
-          const rawLeads = Array.isArray(data) ? data : data.leads || [];
-          rawLeads.forEach((lead: any) => {
-            if (Array.isArray(lead.callHistory)) {
-              lead.callHistory.forEach((c: any) => {
-                const rawDur = String(c.duration || "").replace(/[^\d:]/g, "");
-                let durSec = 0;
-                if (rawDur.includes(":")) {
-                  const parts = rawDur.split(":").map(Number);
-                  durSec = (parts[0] || 0) * 60 + (parts[1] || 0);
-                } else {
-                  durSec = parseInt(rawDur, 10) || 0;
-                }
-                addUniqueCall({
-                  id: c.id || `cr-${Date.now()}-${Math.random()}`,
-                  leadId: lead.id,
-                  studentName: c.studentName || lead.studentName || "Student",
-                  phone: lead.phone || c.studentPhone || "",
-                  studentPhone: lead.phone || "",
-                  callerName: c.callerName || lead.assignedCaller || "Staff",
-                  disposition: c.mindset || c.outcome || "Interested",
-                  outcome: c.outcome || (durSec > 0 ? "Attended Call" : "Not Attended Call"),
-                  mindset: c.mindset || c.outcome || "",
-                  durationSeconds: durSec,
-                  duration_seconds: durSec,
-                  formattedDuration: c.duration || "00:00",
-                  duration: c.duration || "00:00",
-                  qualification: c.qualification || lead.qualification || "",
-                  passedOutYear: c.passedOutYear || lead.passedOutYear || "",
-                  collegeName: c.collegeName || lead.collegeName || "",
-                  courseInterested: c.courseInterested || lead.courseInterested || "",
-                  studentCourse: lead.courseInterested || "",
-                  callDate: c.callDate || "",
-                  callTime: c.callTime || "",
-                  fromTime: c.fromTime || "",
-                  endTime: c.endTime || "",
-                  notes: c.remarks || "",
-                  remarks: c.remarks || "",
-                  timestamp: c.id && c.id.replace(/\D/g, "") ? parseInt(c.id.replace(/\D/g, ""), 10) : Date.now(),
-                  syncedToCrm: true,
-                });
-              });
-            }
-          });
-        }
-      }
-    } catch {}
-
-    // 3. Merge with local offline calls so unsynced calls also show up immediately
-    try {
-      const localCalls = await StorageService.getCallHistory();
-      localCalls.forEach((local) => {
+      const pendingCalls = await StorageService.getPendingCalls();
+      pendingCalls.forEach((local) => {
         addUniqueCall(local);
       });
     } catch {}
@@ -385,9 +341,9 @@ export const ApiService = {
       return { success: true, calls: collectedCalls };
     }
 
-    // 4. Final offline fallback to cached local calls
+    // 3. Fallback: cached local calls if completely offline
     const cachedHistory = await StorageService.getCallHistory();
-    return { success: false, calls: cachedHistory, error: "Offline mode. Showing saved calls." };
+    return { success: false, calls: cachedHistory, error: "Offline mode. Showing cached calls." };
   },
 
   async fetchCallStatus(): Promise<{ success: boolean; data?: any }> {
@@ -580,47 +536,82 @@ export const ApiService = {
       }
     }
 
-    // 2. Also try CRM Server API (Vercel or local Wi-Fi) with timeout
-    try {
-      const baseUrl = await this.getBaseUrl();
-      if (baseUrl && baseUrl.startsWith("http")) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-        const res = await fetch(`${baseUrl}/api/calls/log`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({
-            id: callId,
-            leadId: safeLeadId,
-            studentName: record.studentName,
-            phone: record.phone,
-            callerName: record.callerName,
-            disposition: record.disposition,
-            durationSeconds: record.durationSeconds,
-            courseInterested: record.courseInterested,
-            preferredDomain: record.preferredDomain || record.courseInterested,
-            experienceYears: record.experienceYears,
-            expectedSalary: record.expectedSalary,
-            callStartTime: validStartTime,
-            callEndTime: validEndTime,
-            qualification: record.qualification,
-            passedOutYear: record.passedOutYear,
-            collegeName: record.collegeName,
-            notes: record.notes,
-            nextFollowUpDate: record.nextFollowUpDate,
-            nextFollowUpTime: record.nextFollowUpTime,
-            channel: "Mobile SIM Dialer",
-          }),
-        });
-        clearTimeout(timeoutId);
-
-        if (res.ok) {
-          cloudSynced = true;
+    // 2. Secondary CRM Server sync:
+    // If already synced via Supabase direct, run secondary notification in background without blocking (<200ms save time)
+    if (cloudSynced) {
+      this.getBaseUrl().then((baseUrl) => {
+        if (baseUrl && baseUrl.startsWith("http")) {
+          fetch(`${baseUrl}/api/calls/log`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: callId,
+              leadId: safeLeadId,
+              studentName: record.studentName,
+              phone: record.phone,
+              callerName: record.callerName,
+              disposition: record.disposition,
+              durationSeconds: record.durationSeconds,
+              courseInterested: record.courseInterested,
+              preferredDomain: record.preferredDomain || record.courseInterested,
+              experienceYears: record.experienceYears,
+              expectedSalary: record.expectedSalary,
+              callStartTime: validStartTime,
+              callEndTime: validEndTime,
+              qualification: record.qualification,
+              passedOutYear: record.passedOutYear,
+              collegeName: record.collegeName,
+              notes: record.notes,
+              nextFollowUpDate: record.nextFollowUpDate,
+              nextFollowUpTime: record.nextFollowUpTime,
+              channel: "Mobile SIM Dialer",
+            }),
+          }).catch(() => {});
         }
-      }
-    } catch {}
+      }).catch(() => {});
+    } else {
+      // If Supabase failed (or offline), try baseUrl synchronously with a fast 1500ms timeout
+      try {
+        const baseUrl = await this.getBaseUrl();
+        if (baseUrl && baseUrl.startsWith("http")) {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+          const res = await fetch(`${baseUrl}/api/calls/log`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+            body: JSON.stringify({
+              id: callId,
+              leadId: safeLeadId,
+              studentName: record.studentName,
+              phone: record.phone,
+              callerName: record.callerName,
+              disposition: record.disposition,
+              durationSeconds: record.durationSeconds,
+              courseInterested: record.courseInterested,
+              preferredDomain: record.preferredDomain || record.courseInterested,
+              experienceYears: record.experienceYears,
+              expectedSalary: record.expectedSalary,
+              callStartTime: validStartTime,
+              callEndTime: validEndTime,
+              qualification: record.qualification,
+              passedOutYear: record.passedOutYear,
+              collegeName: record.collegeName,
+              notes: record.notes,
+              nextFollowUpDate: record.nextFollowUpDate,
+              nextFollowUpTime: record.nextFollowUpTime,
+              channel: "Mobile SIM Dialer",
+            }),
+          });
+          clearTimeout(timeoutId);
+
+          if (res.ok) {
+            cloudSynced = true;
+          }
+        }
+      } catch {}
+    }
 
     record.syncedToCrm = cloudSynced;
     await StorageService.addCallRecord(record);

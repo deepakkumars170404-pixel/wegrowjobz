@@ -93,15 +93,21 @@ export default function App() {
 
       // Check today's attendance for this staff
       const att = await StorageService.getTodayAttendance(staff);
+      const metrics = await ApiService.getTodayStaffMetrics(staff);
+
       if (att && att.status === "Punched In") {
+        att.totalCallsToday = metrics.totalCalls;
+        att.spokenSeconds = metrics.spokenSeconds;
+        await StorageService.saveTodayAttendance(att);
         setAttendanceRecord(att);
         setIsPunchedIn(true);
-        setCompletedCallsCount(att.totalCallsToday || 0);
-        setSpokenSeconds(att.spokenSeconds || 0);
       } else {
         // App open -> Show staff selection & punch-in gate so caller identity is verified
         setIsStaffSelectVisible(true);
       }
+
+      setCompletedCallsCount(metrics.totalCalls);
+      setSpokenSeconds(metrics.spokenSeconds);
 
       // Sync offline calls in background
       ApiService.syncPendingCalls().catch(() => {});
@@ -142,6 +148,13 @@ export default function App() {
     await StorageService.saveSettings({ callerName: staff });
 
     const newAtt = await StorageService.punchInAttendance(staff);
+    const metrics = await ApiService.getTodayStaffMetrics(staff);
+    newAtt.totalCallsToday = metrics.totalCalls;
+    newAtt.spokenSeconds = metrics.spokenSeconds;
+    await StorageService.saveTodayAttendance(newAtt);
+
+    setCompletedCallsCount(metrics.totalCalls);
+    setSpokenSeconds(metrics.spokenSeconds);
     setAttendanceRecord(newAtt);
     setIsPunchedIn(true);
     setIsStaffSelectVisible(false);
@@ -247,17 +260,6 @@ export default function App() {
     setModalEndMs(callData.endMs);
     setModalRecordingPath(callData.recordingPath);
     setIsModalVisible(true);
-
-    // Accurately accumulate spoken seconds from carrier/Google dialer call duration
-    if (callData.durationSeconds > 0) {
-      setSpokenSeconds((prev) => {
-        const updated = prev + callData.durationSeconds;
-        StorageService.updateAttendanceSpokenSeconds(activeStaff, callData.durationSeconds).then((att) => {
-          if (att) ApiService.syncAttendanceRecord(att).catch(() => {});
-        }).catch(() => {});
-        return updated;
-      });
-    }
   };
 
   // Auto-detect returning from Google Dialer: Opens Post-Call Feedback Form automatically!
@@ -418,12 +420,21 @@ export default function App() {
         appMode={appMode}
         recordingPath={modalRecordingPath}
         onClose={() => setIsModalVisible(false)}
-        onSaveSuccess={() => {
+        onSaveSuccess={async () => {
           setIsModalVisible(false);
-          setCompletedCallsCount((c) => c + 1);
-          StorageService.incrementAttendanceCallsCount(activeStaff).then((att) => {
-            if (att) ApiService.syncAttendanceRecord(att).catch(() => {});
-          }).catch(() => {});
+          // Query verified metrics directly from jobz_calls database
+          const metrics = await ApiService.getTodayStaffMetrics(activeStaff);
+          setCompletedCallsCount(metrics.totalCalls);
+          setSpokenSeconds(metrics.spokenSeconds);
+          const updatedAtt = await StorageService.updateAttendanceMetrics(
+            activeStaff,
+            metrics.totalCalls,
+            metrics.spokenSeconds
+          );
+          if (updatedAtt) {
+            setAttendanceRecord(updatedAtt);
+            ApiService.syncAttendanceRecord(updatedAtt).catch(() => {});
+          }
         }}
       />
 

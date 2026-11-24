@@ -16,7 +16,7 @@ const KEYS = {
 export const DEFAULT_SETTINGS: AppSettings = {
   crmServerUrl: "https://wegrowcrm.vercel.app",
   admissionServerUrl: "https://wegrowcrm.vercel.app",
-  jobzServerUrl: "https://wegrowcrm.vercel.app",
+  jobzServerUrl: "",
   callerName: "Muthumeena",
   autoPopupDisposition: true,
   strictSafetyBlock: true,
@@ -264,6 +264,31 @@ export const StorageService = {
     };
     await AsyncStorage.setItem(`${KEYS.ATTENDANCE}_${today}_${callerName}`, JSON.stringify(record));
     return record;
+  },
+
+  async saveTodayAttendance(att: AttendanceRecord): Promise<void> {
+    try {
+      const today = att.date || new Date().toISOString().split("T")[0];
+      await AsyncStorage.setItem(`${KEYS.ATTENDANCE}_${today}_${att.callerName}`, JSON.stringify(att));
+    } catch {}
+  },
+
+  async updateAttendanceMetrics(
+    callerName: string,
+    totalCalls: number,
+    spokenSeconds: number
+  ): Promise<AttendanceRecord | null> {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const existing = await StorageService.getTodayAttendance(callerName);
+      if (existing) {
+        existing.totalCallsToday = totalCalls;
+        existing.spokenSeconds = spokenSeconds;
+        await AsyncStorage.setItem(`${KEYS.ATTENDANCE}_${today}_${callerName}`, JSON.stringify(existing));
+        return existing;
+      }
+    } catch {}
+    return null;
   },
 
   async updateAttendanceSpokenSeconds(callerName: string, additionalSeconds: number): Promise<AttendanceRecord | null> {
