@@ -65,3 +65,5 @@ mobile/dist/
 # Antigravity / Gemini temporary files
 .gemini/
 
+
+mobile/android/.tmp-metro/
