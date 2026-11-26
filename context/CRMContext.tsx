@@ -441,12 +441,52 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .catch(() => {});
 
-    // Sync telecallers from server storage
+    // Sync telecallers from server storage (and merge into users for multi-device consistency)
     fetch("/api/staff")
       .then((res) => res.json())
       .then((data) => {
         if (data && Array.isArray(data.telecallers) && data.telecallers.length > 0) {
           setTelecallers(data.telecallers);
+          setUsers((prev) => {
+            const next = [...prev];
+            for (const tc of data.telecallers) {
+              const tcNameLower = (tc.name || "").toLowerCase().trim();
+              if (!tcNameLower) continue;
+              const existingIdx = next.findIndex(
+                (u) => (u.name || "").toLowerCase().trim() === tcNameLower
+              );
+              if (existingIdx >= 0) {
+                next[existingIdx] = {
+                  ...next[existingIdx],
+                  password: tc.password || next[existingIdx].password || "1234",
+                  status: tc.status || next[existingIdx].status || "Active",
+                  isFrozen: tc.isFrozen ?? next[existingIdx].isFrozen ?? false,
+                  mustChangePassword: tc.mustChangePassword ?? next[existingIdx].mustChangePassword ?? false,
+                  avatar: tc.avatar || next[existingIdx].avatar,
+                };
+              } else {
+                next.push({
+                  id: tc.id || `usr-${tcNameLower.replace(/[^a-z0-9]/g, "")}`,
+                  name: tc.name.trim(),
+                  email: tc.email || `${tcNameLower.replace(/[^a-z0-9]/g, "")}@wegrowjobz.com`,
+                  phone: tc.phone || "",
+                  role: "Telecaller",
+                  assignedLeads: tc.assignedLeads || 0,
+                  status: tc.status || "Active",
+                  joinedDate: new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }),
+                  avatar: tc.avatar || "",
+                  lastActive: "Synced",
+                  password: tc.password || "1234",
+                  isFrozen: tc.isFrozen ?? false,
+                  mustChangePassword: tc.mustChangePassword ?? false,
+                });
+              }
+            }
+            try {
+              localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(next));
+            } catch {}
+            return next;
+          });
         }
       })
       .catch(() => {});
@@ -1712,6 +1752,44 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
       return deduped;
     });
+
+    if (userData.role === "Telecaller") {
+      const newTelecaller: Telecaller = {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        phone: newUser.phone,
+        avatar: newUser.avatar || "",
+        role: "Telecalling Executive",
+        assignedLeads: 0,
+        dailyTarget: 50,
+        callsCompleted: 0,
+        connectedCalls: 0,
+        interestedLeads: 0,
+        followUpsCompleted: 0,
+        admissionsGenerated: 0,
+        conversionRate: 0,
+        rank: telecallers.length + 1,
+        status: "Active",
+        isPunchedIn: true,
+        password: (userData as any).password || "1234",
+      };
+      setTelecallers((prev) => {
+        const idx = prev.findIndex((t) => t.name.toLowerCase().trim() === newUser.name.toLowerCase().trim());
+        if (idx >= 0) {
+          const cp = [...prev];
+          cp[idx] = { ...cp[idx], ...newTelecaller };
+          return cp;
+        }
+        return [...prev, newTelecaller];
+      });
+      fetch("/api/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTelecaller),
+      }).catch(() => {});
+    }
+
     showToast({
       type: "success",
       title: "User Created",
@@ -1813,7 +1891,17 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       workingHours: "0h 0m",
       password: callerData.password || "1234",
     };
-    setTelecallers((prev) => [...prev, newCaller]);
+    setTelecallers((prev) => {
+      const idx = prev.findIndex(
+        (t) => t.name.toLowerCase().trim() === callerData.name.toLowerCase().trim()
+      );
+      if (idx >= 0) {
+        const cp = [...prev];
+        cp[idx] = { ...cp[idx], ...newCaller, id: cp[idx].id };
+        return cp;
+      }
+      return [...prev, newCaller];
+    });
 
     // Also register in AppUsers
     const newUser: AppUser = {
@@ -2156,6 +2244,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updatedUsers));
       } catch {}
 
+      fetch("/api/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: targetUser.name, lastLoginAt: nowStr }),
+      }).catch(() => {});
+
       showToast({
         type: "success",
         title: "Login Successful",
@@ -2188,6 +2282,14 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updatedUsers));
       } catch {}
+      const targetUser = updatedUsers.find((u) => u.id === userId || u.name.toLowerCase() === userId.toLowerCase());
+      if (targetUser) {
+        fetch("/api/staff", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: targetUser.name, mustChangePassword: true }),
+        }).catch(() => {});
+      }
       showToast({
         type: "success",
         title: "Password Reset Triggered",
@@ -2230,6 +2332,15 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updatedUsers));
       } catch {}
+      fetch("/api/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: targetName,
+          isFrozen: newFrozenState,
+          status: newFrozenState ? "Inactive" : "Active",
+        }),
+      }).catch(() => {});
       showToast({
         type: newFrozenState ? "warning" : "success",
         title: newFrozenState ? "Account Frozen" : "Account Reactivated",
@@ -2299,6 +2410,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updatedUsers));
       } catch {}
 
+      fetch("/api/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: targetUser.name, password: clean, mustChangePassword: false }),
+      }).catch(() => {});
+
       showToast({
         type: "success",
         title: "Private Password Set Successfully",
@@ -2350,6 +2467,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updatedUsers));
       } catch {}
+
+      fetch("/api/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: targetUser.name, password: updatedClean, mustChangePassword: false }),
+      }).catch(() => {});
 
       showToast({
         type: "success",

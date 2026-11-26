@@ -133,7 +133,13 @@ export async function GET() {
         for (const l of mappedLeads) {
           const clean = String(l.phone || "").replace(/\D/g, "").slice(-10);
           const lowerName = String(l.studentName || "").toLowerCase().trim();
-          if (clean === "1234567890" || clean === "9876543210" || lowerName === "test" || lowerName === "dummy") {
+          if (
+            l.id === "SYS-STAFF-REGISTRY" ||
+            clean === "1234567890" ||
+            clean === "9876543210" ||
+            lowerName === "test" ||
+            lowerName === "dummy"
+          ) {
             continue;
           }
 

@@ -147,8 +147,14 @@ export const ApiService = {
           for (const l of leads) {
             const cleanPhone = (l.phone || "").replace(/\D/g, "").slice(-10);
             const lowerName = (l.studentName || "").toLowerCase().trim();
-            // Filter out dummy test numbers and test names
-            if (cleanPhone === "1234567890" || cleanPhone === "9876543210" || lowerName === "test" || lowerName === "dummy") {
+            // Filter out system staff registry row, dummy test numbers, and test names
+            if (
+              l.id === "SYS-STAFF-REGISTRY" ||
+              cleanPhone === "1234567890" ||
+              cleanPhone === "9876543210" ||
+              lowerName === "test" ||
+              lowerName === "dummy"
+            ) {
               continue;
             }
 
@@ -160,8 +166,14 @@ export const ApiService = {
           }
 
           await StorageService.saveCachedLeads(dedupedLeads);
-          // Auto-register callers present in downloaded leads
-          const callersInLeads = Array.from(new Set(dedupedLeads.map(l => (l.assignedCaller || '').trim()).filter(Boolean)));
+          // Auto-register callers present in downloaded leads (ignore "Unassigned")
+          const callersInLeads = Array.from(
+            new Set(
+              dedupedLeads
+                .map((l) => (l.assignedCaller || "").trim())
+                .filter((c) => Boolean(c) && c.toLowerCase() !== "unassigned")
+            )
+          );
           for (const c of callersInLeads) {
             await StorageService.addStaffMember(c);
           }
@@ -855,8 +867,24 @@ export const ApiService = {
   async syncStaffMembers(): Promise<string[]> {
     const cached = await StorageService.getStaffMembers();
     const staffSet = new Set<string>(cached);
+    let syncedFromServer = false;
 
-    // 1. Try fetching from server /api/staff
+    const applyTelecallerMetadata = async (t: any) => {
+      const cleanName = (t?.name || "").trim();
+      if (!cleanName || cleanName.toLowerCase() === "unassigned") return;
+      staffSet.add(cleanName);
+      await StorageService.saveStaffPassword(cleanName, (t.password && String(t.password).trim()) || "1234");
+      if (t.avatar) {
+        await StorageService.saveStaffAvatar(cleanName, t.avatar);
+      }
+      await StorageService.saveStaffStatus(cleanName, {
+        isFrozen: Boolean(t.isFrozen || t.status === "Inactive"),
+        status: t.status || "Active",
+        role: t.role || "Telecalling Executive",
+      });
+    };
+
+    // 1. Try fetching from server /api/staff (Wi-Fi / Configured Server URL)
     try {
       const baseUrl = await this.getBaseUrl();
       const candidateUrls = [
@@ -876,22 +904,19 @@ export const ApiService = {
           if (res.ok) {
             const data = await res.json();
             if (data && Array.isArray(data.staffNames) && data.staffNames.length > 0) {
-              // Server list is authoritative: clear stale deleted members
               staffSet.clear();
               data.staffNames.forEach((n: string) => {
-                if (n && typeof n === "string") staffSet.add(n.trim());
+                if (n && typeof n === "string" && n.trim().toLowerCase() !== "unassigned") {
+                  staffSet.add(n.trim());
+                }
               });
+              syncedFromServer = true;
             }
             if (data && Array.isArray(data.telecallers)) {
               for (const t of data.telecallers) {
-                if (t.name) staffSet.add(t.name.trim());
-                if (t.name && t.password) {
-                  await StorageService.saveStaffPassword(t.name.trim(), t.password);
-                }
-                if (t.name && t.avatar) {
-                  await StorageService.saveStaffAvatar(t.name.trim(), t.avatar);
-                }
+                await applyTelecallerMetadata(t);
               }
+              syncedFromServer = true;
             }
             break;
           }
@@ -899,22 +924,45 @@ export const ApiService = {
       }
     } catch {}
 
-    // 2. Also check Supabase jobz_leads for any assigned telecallers
+    // 2. Also check Supabase Cloud (Works on 4G / Mobile Data outside office Wi-Fi!)
     if (isSupabaseReady() && supabaseMobile) {
       try {
+        // 2a. Read Authoritative Staff Directory (names, passwords, freeze status)
+        const { data: regData, error: regErr } = await supabaseMobile
+          .from("jobz_leads")
+          .select("college_name")
+          .eq("id", "SYS-STAFF-REGISTRY")
+          .maybeSingle();
+
+        if (!regErr && regData?.college_name) {
+          try {
+            const registry = JSON.parse(regData.college_name);
+            if (Array.isArray(registry) && registry.length > 0) {
+              if (!syncedFromServer) {
+                staffSet.clear();
+              }
+              for (const t of registry) {
+                await applyTelecallerMetadata(t);
+              }
+            }
+          } catch {}
+        }
+
+        // 2b. Also check assigned_caller across jobz_leads
         const { data, error } = await supabaseMobile
           .from("jobz_leads")
-          .select("assigned_caller")
+          .select("id, assigned_caller")
           .not("assigned_caller", "is", null)
           .limit(100);
 
         if (!error && data) {
-          data.forEach((row: any) => {
+          for (const row of data) {
+            if (row.id === "SYS-STAFF-REGISTRY") continue;
             const name = (row.assigned_caller || "").trim();
             if (name && name.toLowerCase() !== "unassigned") {
               staffSet.add(name);
             }
-          });
+          }
         }
       } catch {}
     }

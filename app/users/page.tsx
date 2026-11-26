@@ -59,6 +59,7 @@ export default function UsersRolesPage() {
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPhone, setNewUserPhone] = useState("");
   const [newUserRole, setNewUserRole] = useState<AppUser["role"]>("Telecaller");
+  const [newUserPassword, setNewUserPassword] = useState("1234");
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,11 +72,13 @@ export default function UsersRolesPage() {
       role: newUserRole,
       status: "Active",
       avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-    });
+      password: newUserPassword.trim() || "1234",
+    } as any);
 
     setNewUserName("");
     setNewUserEmail("");
     setNewUserPhone("");
+    setNewUserPassword("1234");
     setIsAddUserModalOpen(false);
   };
 
@@ -403,6 +406,19 @@ export default function UsersRolesPage() {
                   <option value="Admin">Admin (Full Operations Control)</option>
                   <option value="Owner">Owner (Executive Overview)</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Login PIN / Password (Default: 1234)
+                </label>
+                <input
+                  type="text"
+                  placeholder="1234"
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-xl font-mono"
+                />
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t">

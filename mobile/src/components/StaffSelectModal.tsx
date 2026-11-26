@@ -10,7 +10,7 @@ import {
   Alert,
   Image,
 } from "react-native";
-import { UserCheck, Check, Play, Shield, Lock, KeyRound, Camera } from "lucide-react-native";
+import { UserCheck, Check, Play, KeyRound, Camera, Eye, EyeOff, RefreshCw } from "lucide-react-native";
 import { WEGROW_STAFF_MEMBERS, StaffMember } from "../types";
 import { THEME } from "../constants/theme";
 import { StorageService } from "../services/storage";
@@ -37,35 +37,77 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
   const [pinError, setPinError] = useState(false);
   const [avatarsMap, setAvatarsMap] = useState<Record<string, string>>({});
   const [passwordsMap, setPasswordsMap] = useState<Record<string, string>>({});
+  const [statusMap, setStatusMap] = useState<Record<string, { isFrozen?: boolean; status?: string; role?: string }>>({});
+  const [showPin, setShowPin] = useState(false);
+  const [isSyncingStaff, setIsSyncingStaff] = useState(false);
   const [photoUrlInput, setPhotoUrlInput] = useState("");
   const [isPhotoEditOpen, setIsPhotoEditOpen] = useState(false);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newStaffName, setNewStaffName] = useState("");
 
+  const refreshLocalAndCloudStaff = async () => {
+    const [avatars, passwords, status, cachedList] = await Promise.all([
+      StorageService.getStaffAvatars(),
+      StorageService.getStaffPasswords(),
+      StorageService.getStaffStatus(),
+      StorageService.getStaffMembers(),
+    ]);
+    setAvatarsMap(avatars);
+    setPasswordsMap(passwords);
+    setStatusMap(status);
+    if (cachedList && cachedList.length > 0) setStaffList(cachedList);
+
+    try {
+      setIsSyncingStaff(true);
+      const latest = await ApiService.syncStaffMembers();
+      if (latest && latest.length > 0) {
+        setStaffList(latest);
+      }
+      // Always reload passwords/avatars/status AFTER sync completes so new admin staff passwords take effect!
+      const [freshPasswords, freshAvatars, freshStatus] = await Promise.all([
+        StorageService.getStaffPasswords(),
+        StorageService.getStaffAvatars(),
+        StorageService.getStaffStatus(),
+      ]);
+      setPasswordsMap(freshPasswords);
+      setAvatarsMap(freshAvatars);
+      setStatusMap(freshStatus);
+    } catch {} finally {
+      setIsSyncingStaff(false);
+    }
+  };
+
   useEffect(() => {
-    StorageService.getStaffAvatars().then(setAvatarsMap);
-    StorageService.getStaffPasswords().then(setPasswordsMap);
-    StorageService.getStaffMembers().then((list) => {
-      if (list && list.length > 0) setStaffList(list);
-    });
-
-    // Automatically sync live staff from server / database
-    ApiService.syncStaffMembers().then((latest) => {
-      if (latest && latest.length > 0) setStaffList(latest);
-    }).catch(() => {});
-
-    setPin("");
-    setPinError(false);
+    if (visible) {
+      refreshLocalAndCloudStaff();
+      setPin("");
+      setPinError(false);
+      setShowPin(false);
+    }
   }, [visible]);
 
   const handleAddNewStaff = async () => {
     if (!newStaffName.trim()) return;
     const name = newStaffName.trim();
     const updated = await StorageService.addStaffMember(name);
+    await StorageService.saveStaffPassword(name, "1234");
+    setPasswordsMap((prev) => ({ ...prev, [name]: "1234" }));
     setStaffList(updated);
     setSelected(name);
     setIsAddingNew(false);
     setNewStaffName("");
+
+    // Best-effort sync back to server so Web CRM stays aligned
+    try {
+      const baseUrl = await ApiService.getBaseUrl();
+      const targetUrl = baseUrl ? `${baseUrl}/api/staff` : "http://192.168.29.60:3001/api/staff";
+      fetch(targetUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, password: "1234", role: "Telecalling Executive" }),
+      }).catch(() => {});
+    } catch {}
+
     Alert.alert("Enrolled", `${name} added to telecaller list! Default PIN is 1234.`);
   };
 
@@ -78,9 +120,44 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
     Alert.alert("Success", `Profile picture updated for ${selected}!`);
   };
 
-  const handleLogin = () => {
-    const selectedName = selected as string;
-    const expected = passwordsMap[selectedName] || (selectedName === "Thavabalan" ? "7708" : selectedName === "Muthumeena" ? "1234" : "5678");
+  const handleLogin = async () => {
+    const selectedName = (selected as string || "").trim();
+    const selectedLower = selectedName.toLowerCase();
+
+    // Always read latest saved maps too, in case sync finished milliseconds ago
+    const latestPasswords = await StorageService.getStaffPasswords();
+    const latestStatus = await StorageService.getStaffStatus();
+
+    const matchedStatus = Object.entries(latestStatus).find(
+      ([k]) => k.toLowerCase().trim() === selectedLower
+    )?.[1] || statusMap[selectedName];
+
+    if (matchedStatus?.isFrozen || matchedStatus?.status === "Inactive") {
+      Alert.alert(
+        "Account Frozen",
+        `${selectedName}'s login has been frozen by Owner/Admin. Please contact Management.`
+      );
+      return;
+    }
+
+    const matchedPassword =
+      Object.entries(latestPasswords).find(
+        ([k]) => k.toLowerCase().trim() === selectedLower
+      )?.[1] ||
+      Object.entries(passwordsMap).find(
+        ([k]) => k.toLowerCase().trim() === selectedLower
+      )?.[1];
+
+    const fallbackPin =
+      selectedLower === "thavabalan"
+        ? "7708"
+        : selectedLower.includes("gopinath")
+        ? "5678"
+        : selectedLower === "vijayakumar"
+        ? "9944"
+        : "1234";
+
+    const expected = (matchedPassword || fallbackPin).trim();
     if (pin.trim() === expected || pin.trim() === "1704") {
       setPinError(false);
       onSelectAndPunchIn(selected);
@@ -227,27 +304,47 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
 
           {/* PIN Input Box */}
           <View style={styles.pinSection}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 }}>
-              <KeyRound size={13} color="#475569" strokeWidth={2.5} />
-              <Text style={styles.pinLabel}>Enter Staff PIN / Password</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <KeyRound size={13} color="#475569" strokeWidth={2.5} />
+                <Text style={styles.pinLabel}>Enter Staff PIN / Password</Text>
+              </View>
+              <TouchableOpacity
+                onPress={refreshLocalAndCloudStaff}
+                style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#EFF6FF" }}
+              >
+                <RefreshCw size={11} color="#2563EB" />
+                <Text style={{ fontSize: 10, fontWeight: "700", color: "#2563EB" }}>
+                  {isSyncingStaff ? "Syncing..." : "Sync Staff"}
+                </Text>
+              </TouchableOpacity>
             </View>
-            <TextInput
-              style={[styles.pinInput, pinError && styles.pinInputError]}
-              value={pin}
-              onChangeText={(t) => {
-                setPin(t);
-                setPinError(false);
-              }}
-              placeholder="e.g. 1234"
-              placeholderTextColor="#94A3B8"
-              keyboardType="number-pad"
-              maxLength={6}
-              secureTextEntry
-            />
+            <View style={{ position: "relative", justifyContent: "center" }}>
+              <TextInput
+                style={[styles.pinInput, pinError && styles.pinInputError, { paddingRight: 44 }]}
+                value={pin}
+                onChangeText={(t) => {
+                  setPin(t);
+                  setPinError(false);
+                }}
+                placeholder="e.g. 1234 or password"
+                placeholderTextColor="#94A3B8"
+                keyboardType="default"
+                autoCapitalize="none"
+                maxLength={32}
+                secureTextEntry={!showPin}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPin((p) => !p)}
+                style={{ position: "absolute", right: 12, padding: 6 }}
+              >
+                {showPin ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+              </TouchableOpacity>
+            </View>
             {pinError ? (
-              <Text style={styles.errorText}>⚠️ Incorrect PIN. Default PIN is 1234.</Text>
+              <Text style={styles.errorText}>⚠️ Incorrect PIN/Password. Check Admin Panel or use 1234.</Text>
             ) : (
-              <Text style={styles.pinHelpText}>Default PIN: 1234</Text>
+              <Text style={styles.pinHelpText}>Default PIN: 1234 (or Admin-set password)</Text>
             )}
           </View>
 

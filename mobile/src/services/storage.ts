@@ -13,6 +13,7 @@ const KEYS = {
   STAFF_AVATARS: "@wegrow_staff_avatars",
   STAFF_PASSWORDS: "@wegrow_staff_passwords",
   STAFF_MEMBERS: "@wegrow_staff_members_dynamic",
+  STAFF_STATUS: "@wegrow_staff_status",
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -424,6 +425,26 @@ export const StorageService = {
       const passwords = await StorageService.getStaffPasswords();
       passwords[staffName] = pass.trim();
       await AsyncStorage.setItem(KEYS.STAFF_PASSWORDS, JSON.stringify(passwords));
+    } catch {}
+  },
+
+  // Staff Account Status (Active / Frozen)
+  async getStaffStatus(): Promise<Record<string, { isFrozen?: boolean; status?: string; role?: string }>> {
+    try {
+      const data = await AsyncStorage.getItem(KEYS.STAFF_STATUS);
+      if (data) return JSON.parse(data);
+    } catch {}
+    return {};
+  },
+
+  async saveStaffStatus(
+    staffName: string,
+    info: { isFrozen?: boolean; status?: string; role?: string }
+  ): Promise<void> {
+    try {
+      const current = await StorageService.getStaffStatus();
+      current[staffName] = info;
+      await AsyncStorage.setItem(KEYS.STAFF_STATUS, JSON.stringify(current));
     } catch {}
   },
 };

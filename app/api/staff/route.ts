@@ -1,16 +1,71 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { initialTelecallers, initialUsers } from "@/data/dummy-data";
+import { initialTelecallers } from "@/data/dummy-data";
+import { supabase, supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORAGE_FILE = path.join(DATA_DIR, "crm_storage.json");
+const STAFF_REGISTRY_ID = "SYS-STAFF-REGISTRY";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
+
+async function syncStaffToSupabase(telecallers: any[]) {
+  const client = supabaseAdmin || supabase;
+  if (!isSupabaseConfigured() || !client) return;
+  try {
+    const compact = telecallers.map((t: any) => ({
+      id: t.id,
+      name: (t.name || "").trim(),
+      phone: t.phone || "",
+      email: t.email || "",
+      role: t.role || "Telecalling Executive",
+      password: t.password || "1234",
+      status: t.status || "Active",
+      isFrozen: Boolean(t.isFrozen || t.status === "Inactive"),
+      mustChangePassword: Boolean(t.mustChangePassword),
+      avatar: t.avatar && !String(t.avatar).startsWith("data:") ? t.avatar : "",
+      dailyTarget: t.dailyTarget || 50,
+    }));
+
+    await client.from("jobz_leads").upsert(
+      {
+        id: STAFF_REGISTRY_ID,
+        student_name: "dummy",
+        phone: "1234567890",
+        assigned_caller: "Unassigned",
+        status: "Inactive",
+        stage: "System",
+        college_name: JSON.stringify(compact),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    );
+  } catch (err) {
+    console.warn("Supabase staff registry sync failed:", err);
+  }
+}
+
+async function readStaffFromSupabase(): Promise<any[] | null> {
+  const client = supabaseAdmin || supabase;
+  if (!isSupabaseConfigured() || !client) return null;
+  try {
+    const { data, error } = await client
+      .from("jobz_leads")
+      .select("college_name")
+      .eq("id", STAFF_REGISTRY_ID)
+      .maybeSingle();
+    if (!error && data?.college_name) {
+      const parsed = JSON.parse(data.college_name);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return null;
+}
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
@@ -45,13 +100,17 @@ export async function GET() {
     const storage = readStorage();
     let telecallers = Array.isArray(storage.telecallers) && storage.telecallers.length > 0
       ? storage.telecallers
-      : [...initialTelecallers];
+      : null;
 
-    // Ensure storage is in sync
-    if (!storage.telecallers || storage.telecallers.length === 0) {
+    if (!telecallers) {
+      const sbStaff = await readStaffFromSupabase();
+      telecallers = sbStaff && sbStaff.length > 0 ? sbStaff : [...initialTelecallers];
       storage.telecallers = telecallers;
       writeStorage(storage);
     }
+
+    // Keep Supabase Cloud Staff Registry updated in background
+    await syncStaffToSupabase(telecallers);
 
     const staffNames = Array.from(new Set(telecallers.map((t: any) => t.name).filter(Boolean)));
 
@@ -92,10 +151,15 @@ export async function POST(req: Request) {
       );
 
       if (existingIdx >= 0) {
+        const prev = currentTelecallers[existingIdx];
         currentTelecallers[existingIdx] = {
-          ...currentTelecallers[existingIdx],
+          ...prev,
           ...body,
+          id: prev.id || body.id,
           name: incomingName,
+          password: body.password !== undefined && String(body.password).trim() !== ""
+            ? String(body.password).trim()
+            : prev.password || "1234",
         };
       } else {
         const newId = body.id || `TC-${(currentTelecallers.length + 1).toString().padStart(3, "0")}`;
@@ -119,7 +183,7 @@ export async function POST(req: Request) {
           isPunchedIn: body.isPunchedIn ?? true,
           punchInTime: body.punchInTime || "09:30 AM",
           workingHours: body.workingHours || "0h 0m",
-          password: body.password || "1234",
+          password: (body.password && String(body.password).trim()) || "1234",
           mustChangePassword: body.mustChangePassword ?? false,
           isFrozen: body.isFrozen ?? false,
           lastLoginAt: body.lastLoginAt || "",
@@ -130,6 +194,7 @@ export async function POST(req: Request) {
     storage.telecallers = currentTelecallers;
     storage.staffUpdatedAt = new Date().toISOString();
     writeStorage(storage);
+    await syncStaffToSupabase(currentTelecallers);
 
     const staffNames = Array.from(new Set(currentTelecallers.map((t: any) => t.name).filter(Boolean)));
 
@@ -169,6 +234,7 @@ export async function DELETE(req: Request) {
       storage.telecallers = currentTelecallers;
       storage.staffUpdatedAt = new Date().toISOString();
       writeStorage(storage);
+      await syncStaffToSupabase(currentTelecallers);
     }
 
     const staffNames = Array.from(new Set(currentTelecallers.map((t: any) => t.name).filter(Boolean)));
