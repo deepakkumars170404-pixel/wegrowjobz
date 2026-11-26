@@ -1036,7 +1036,27 @@
       "admissionsGenerated": 12,
       "conversionRate": 26.5,
       "rank": 1
+    },
+    {
+      "id": "caller-deepakkumar",
+      "name": "Deepak kumar",
+      "email": "deepakkumar@wegrowjobz.com",
+      "phone": "+91 98431 73678",
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+      "role": "Telecalling Executive",
+      "assignedLeads": 10,
+      "dailyTarget": 50,
+      "callsCompleted": 0,
+      "connectedCalls": 0,
+      "interestedLeads": 0,
+      "followUpsCompleted": 0,
+      "admissionsGenerated": 0,
+      "conversionRate": 0,
+      "rank": 2,
+      "status": "Active",
+      "isPunchedIn": true,
+      "password": "1234"
     }
   ],
-  "staffUpdatedAt": "2026-11-24T13:14:49.389Z"
+  "staffUpdatedAt": "2026-11-24T13:32:36.983Z"
 }
