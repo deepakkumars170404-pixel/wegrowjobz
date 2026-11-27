@@ -121,12 +121,13 @@ function writeStorage(data: any): boolean {
 
 export async function GET() {
   try {
+    const isVercel = Boolean(process.env.VERCEL);
     const storage = readStorage();
     const localTelecallers: any[] | null =
-      Array.isArray(storage.telecallers) && storage.telecallers.length > 0
+      !isVercel && Array.isArray(storage.telecallers) && storage.telecallers.length > 0
         ? storage.telecallers
         : null;
-    const localUpdatedAt = storage.staffUpdatedAt ? Date.parse(storage.staffUpdatedAt) : 0;
+    const localUpdatedAt = !isVercel && storage.staffUpdatedAt ? Date.parse(storage.staffUpdatedAt) : 0;
     let deletedNames: string[] = Array.isArray(storage.deletedStaffNames)
       ? storage.deletedStaffNames
       : [];
@@ -135,17 +136,21 @@ export async function GET() {
     const sbUpdatedAt = sbData?.updatedAt ? Date.parse(sbData.updatedAt) : 0;
 
     if (sbData?.deletedNames) {
-      deletedNames = Array.from(new Set([...deletedNames, ...sbData.deletedNames]));
+      deletedNames = isVercel
+        ? [...sbData.deletedNames]
+        : Array.from(new Set([...deletedNames, ...sbData.deletedNames]));
     }
 
     let telecallers: any[];
-    if (sbData && Array.isArray(sbData.telecallers) && (!localTelecallers || sbUpdatedAt >= localUpdatedAt)) {
-      // Cloud registry is newer or equal -> trust Supabase as authoritative
+    if (sbData && Array.isArray(sbData.telecallers) && (isVercel || !localTelecallers || sbUpdatedAt >= localUpdatedAt)) {
+      // Cloud registry is authoritative on Vercel or whenever newer/equal
       telecallers = sbData.telecallers;
-      storage.telecallers = telecallers;
-      storage.deletedStaffNames = deletedNames;
-      storage.staffUpdatedAt = sbData.updatedAt || new Date().toISOString();
-      writeStorage(storage);
+      if (!isVercel) {
+        storage.telecallers = telecallers;
+        storage.deletedStaffNames = deletedNames;
+        storage.staffUpdatedAt = sbData.updatedAt || new Date().toISOString();
+        writeStorage(storage);
+      }
     } else if (localTelecallers) {
       telecallers = localTelecallers;
       if (!sbData || localUpdatedAt > sbUpdatedAt) {
@@ -153,10 +158,12 @@ export async function GET() {
       }
     } else {
       telecallers = [...initialTelecallers];
-      storage.telecallers = telecallers;
-      storage.staffUpdatedAt = new Date().toISOString();
-      writeStorage(storage);
-      await syncStaffToSupabase(telecallers, deletedNames, storage.staffUpdatedAt);
+      if (!isVercel) {
+        storage.telecallers = telecallers;
+        storage.staffUpdatedAt = new Date().toISOString();
+        writeStorage(storage);
+      }
+      await syncStaffToSupabase(telecallers, deletedNames, new Date().toISOString());
     }
 
     // Safety guard: never return any caller present in deletedNames
@@ -176,7 +183,7 @@ export async function GET() {
         telecallers,
         staffNames,
         deletedStaffNames: deletedNames,
-        updatedAt: storage.staffUpdatedAt || new Date().toISOString(),
+        updatedAt: sbData?.updatedAt || storage.staffUpdatedAt || new Date().toISOString(),
       },
       { headers: corsHeaders }
     );
@@ -190,22 +197,25 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const isVercel = Boolean(process.env.VERCEL);
     const body = await req.json();
     const storage = readStorage();
     const sbData = await readStaffFromSupabase();
-    const localUpdatedAt = storage.staffUpdatedAt ? Date.parse(storage.staffUpdatedAt) : 0;
+    const localUpdatedAt = !isVercel && storage.staffUpdatedAt ? Date.parse(storage.staffUpdatedAt) : 0;
     const sbUpdatedAt = sbData?.updatedAt ? Date.parse(sbData.updatedAt) : 0;
 
     let currentTelecallers =
-      sbData && Array.isArray(sbData.telecallers) && sbUpdatedAt >= localUpdatedAt
+      sbData && Array.isArray(sbData.telecallers) && (isVercel || sbUpdatedAt >= localUpdatedAt)
         ? sbData.telecallers
         : Array.isArray(storage.telecallers) && storage.telecallers.length > 0
         ? storage.telecallers
         : [...initialTelecallers];
 
-    let deletedNames: string[] = Array.from(
-      new Set([...(Array.isArray(storage.deletedStaffNames) ? storage.deletedStaffNames : []), ...(sbData?.deletedNames || [])])
-    );
+    let deletedNames: string[] = isVercel
+      ? [...(sbData?.deletedNames || [])]
+      : Array.from(
+          new Set([...(Array.isArray(storage.deletedStaffNames) ? storage.deletedStaffNames : []), ...(sbData?.deletedNames || [])])
+        );
 
     if (body.telecallers && Array.isArray(body.telecallers)) {
       // Bulk update/replace
@@ -291,25 +301,28 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const isVercel = Boolean(process.env.VERCEL);
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     const name = searchParams.get("name");
     const storage = readStorage();
     const sbData = await readStaffFromSupabase();
-    const localUpdatedAt = storage.staffUpdatedAt ? Date.parse(storage.staffUpdatedAt) : 0;
+    const localUpdatedAt = !isVercel && storage.staffUpdatedAt ? Date.parse(storage.staffUpdatedAt) : 0;
     const sbUpdatedAt = sbData?.updatedAt ? Date.parse(sbData.updatedAt) : 0;
 
     // Cloud-first: never delete against a stale bundled crm_storage.json (which would resurrect previously deleted staff!)
     let currentTelecallers =
-      sbData && Array.isArray(sbData.telecallers) && sbUpdatedAt >= localUpdatedAt
+      sbData && Array.isArray(sbData.telecallers) && (isVercel || sbUpdatedAt >= localUpdatedAt)
         ? sbData.telecallers
         : Array.isArray(storage.telecallers)
         ? storage.telecallers
         : [...initialTelecallers];
 
-    let deletedNames: string[] = Array.from(
-      new Set([...(Array.isArray(storage.deletedStaffNames) ? storage.deletedStaffNames : []), ...(sbData?.deletedNames || [])])
-    );
+    let deletedNames: string[] = isVercel
+      ? [...(sbData?.deletedNames || [])]
+      : Array.from(
+          new Set([...(Array.isArray(storage.deletedStaffNames) ? storage.deletedStaffNames : []), ...(sbData?.deletedNames || [])])
+        );
 
     if (id || name) {
       const removed = currentTelecallers.filter((t: any) => {

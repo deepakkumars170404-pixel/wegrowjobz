@@ -184,6 +184,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [whatsappChats, setWhatsappChats] = useState<WhatsAppChat[]>(initialWhatsAppChats);
   const [courses] = useState<Course[]>(initialCourses);
   const [telecallers, setTelecallers] = useState<Telecaller[]>(initialTelecallers);
+  const deletedStaffRef = useRef<Set<string>>(new Set());
   const [users, setUsers] = useState<AppUser[]>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -618,23 +619,61 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           { event: "*", schema: "public", table: "jobz_leads" },
           (payload: any) => {
             if (payload?.new?.id === "SYS-STAFF-REGISTRY") {
+              try {
+                const cloudCallers = payload.new.college_name ? JSON.parse(payload.new.college_name) : null;
+                const cloudDeleted: string[] = payload.new.notice_period ? JSON.parse(payload.new.notice_period) : [];
+                if (Array.isArray(cloudDeleted)) {
+                  cloudDeleted.forEach((n) => deletedStaffRef.current.add(String(n || "").toLowerCase().trim()));
+                }
+                if (Array.isArray(cloudCallers)) {
+                  const filtered = cloudCallers.filter(
+                    (t: any) =>
+                      !deletedStaffRef.current.has(String(t?.name || "").toLowerCase().trim()) &&
+                      !deletedStaffRef.current.has(String(t?.id || "").toLowerCase().trim())
+                  );
+                  setTelecallers(filtered);
+                  const serverNames = new Set(
+                    filtered.map((t: any) => String(t.name || "").toLowerCase().trim()).filter(Boolean)
+                  );
+                  setUsers((prev) => {
+                    const next = prev.filter((u) => {
+                      const nm = (u.name || "").toLowerCase().trim();
+                      if (u.role === "Telecaller" && (deletedStaffRef.current.has(nm) || !serverNames.has(nm))) {
+                        return false;
+                      }
+                      return true;
+                    });
+                    try {
+                      localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(next));
+                    } catch {}
+                    return next;
+                  });
+                  return;
+                }
+              } catch {}
               fetch("/api/staff")
                 .then((res) => res.json())
                 .then((data) => {
                   if (data && Array.isArray(data.telecallers)) {
-                    setTelecallers(data.telecallers);
                     const deletedSet = new Set<string>(
                       Array.isArray(data.deletedStaffNames)
                         ? data.deletedStaffNames.map((n: string) => String(n || "").toLowerCase().trim()).filter(Boolean)
                         : []
                     );
+                    deletedSet.forEach((d) => deletedStaffRef.current.add(d));
+                    const filtered = data.telecallers.filter(
+                      (t: any) =>
+                        !deletedStaffRef.current.has(String(t?.name || "").toLowerCase().trim()) &&
+                        !deletedStaffRef.current.has(String(t?.id || "").toLowerCase().trim())
+                    );
+                    setTelecallers(filtered);
                     const serverNames = new Set(
-                      data.telecallers.map((t: any) => String(t.name || "").toLowerCase().trim()).filter(Boolean)
+                      filtered.map((t: any) => String(t.name || "").toLowerCase().trim()).filter(Boolean)
                     );
                     setUsers((prev) => {
                       const next = prev.filter((u) => {
                         const nm = (u.name || "").toLowerCase().trim();
-                        if (u.role === "Telecaller" && (deletedSet.has(nm) || !serverNames.has(nm))) {
+                        if (u.role === "Telecaller" && (deletedStaffRef.current.has(nm) || !serverNames.has(nm))) {
                           return false;
                         }
                         return true;
@@ -1869,6 +1908,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addUser = (userData: Omit<AppUser, "id" | "assignedLeads" | "joinedDate" | "lastActive">) => {
     const slug = userData.name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12) || "user";
+    deletedStaffRef.current.delete(userData.name.toLowerCase().trim());
     const newUser: AppUser = {
       ...userData,
       id: `usr-${slug}-${Date.now().toString(36)}`,
@@ -2075,6 +2115,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     password?: string;
   }) => {
     const slug = callerData.name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12) || "staff";
+    deletedStaffRef.current.delete(callerData.name.toLowerCase().trim());
     const id = `tc-${slug}-${Date.now().toString(36)}`;
     const newCaller: Telecaller = {
       id,
@@ -2214,6 +2255,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     const resolvedName = matchedCaller?.name || idOrName.trim();
     const resolvedId = matchedCaller?.id || idOrName.trim();
+
+    deletedStaffRef.current.add(cleanTarget);
+    deletedStaffRef.current.add(resolvedName.toLowerCase().trim());
+    deletedStaffRef.current.add(resolvedId.toLowerCase().trim());
 
     setTelecallers((prev) =>
       prev.filter(
