@@ -504,21 +504,59 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }).catch(() => {});
             }
 
-            // 3. Merge authoritative server callers into browser users
-            for (const tc of serverCallers) {
+            // 3. Merge authoritative server callers + any locally stored avatars into browser users
+            let localAvatarsMap: Record<string, string> = {};
+            try {
+              const avRaw = localStorage.getItem("wegrow_staff_avatars");
+              if (avRaw) localAvatarsMap = JSON.parse(avRaw) || {};
+            } catch {}
+
+            const findLocalAvatar = (name: string) => {
+              const lower = (name || "").toLowerCase().trim();
+              const match = Object.entries(localAvatarsMap).find(
+                ([k, v]) => k.toLowerCase().trim() === lower && Boolean(v)
+              );
+              return match ? match[1] : "";
+            };
+
+            for (let i = 0; i < serverCallers.length; i++) {
+              const tc = serverCallers[i];
               const tcNameLower = (tc.name || "").toLowerCase().trim();
               if (!tcNameLower) continue;
               const existingIdx = next.findIndex(
                 (u) => (u.name || "").toLowerCase().trim() === tcNameLower
               );
+              const existingLocalUser = existingIdx >= 0 ? next[existingIdx] : undefined;
+              const resolvedAvatar =
+                tc.avatar ||
+                findLocalAvatar(tc.name) ||
+                existingLocalUser?.avatar ||
+                "";
+
+              // If server missed an avatar saved locally, heal it up to server!
+              if (!tc.avatar && resolvedAvatar) {
+                serverCallers[i] = { ...tc, avatar: resolvedAvatar };
+                fetch("/api/staff", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ name: tc.name.trim(), avatar: resolvedAvatar }),
+                }).catch(() => {});
+              }
+
               if (existingIdx >= 0) {
                 next[existingIdx] = {
                   ...next[existingIdx],
+                  phone: tc.phone || next[existingIdx].phone || "",
+                  email: tc.email || next[existingIdx].email || "",
+                  whatsapp: tc.whatsapp || next[existingIdx].whatsapp || "",
+                  languages: (Array.isArray(tc.languages) && tc.languages.length > 0) ? tc.languages : next[existingIdx].languages,
+                  specialization: tc.specialization || next[existingIdx].specialization || "",
+                  bio: tc.bio || next[existingIdx].bio || "",
                   password: tc.password || next[existingIdx].password || "1234",
                   status: tc.status || next[existingIdx].status || "Active",
                   isFrozen: tc.isFrozen ?? next[existingIdx].isFrozen ?? false,
                   mustChangePassword: tc.mustChangePassword ?? next[existingIdx].mustChangePassword ?? false,
-                  avatar: tc.avatar || next[existingIdx].avatar,
+                  avatar: resolvedAvatar,
                 };
               } else {
                 next.push({
@@ -526,11 +564,15 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   name: tc.name.trim(),
                   email: tc.email || `${tcNameLower.replace(/[^a-z0-9]/g, "")}@wegrowjobz.com`,
                   phone: tc.phone || "",
+                  whatsapp: tc.whatsapp || "",
+                  languages: tc.languages,
+                  specialization: tc.specialization || "",
+                  bio: tc.bio || "",
                   role: "Telecaller",
                   assignedLeads: tc.assignedLeads || 0,
                   status: tc.status || "Active",
                   joinedDate: new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }),
-                  avatar: tc.avatar || "",
+                  avatar: resolvedAvatar,
                   lastActive: "Synced",
                   password: tc.password || "1234",
                   isFrozen: tc.isFrozen ?? false,
@@ -538,8 +580,22 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 });
               }
             }
+
+            // Apply saved local avatars to non-telecaller users (Owner / Admin) too!
+            for (let j = 0; j < next.length; j++) {
+              const av = findLocalAvatar(next[j].name);
+              if (av && !next[j].avatar) {
+                next[j] = { ...next[j], avatar: av };
+              }
+            }
+
             try {
               localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(next));
+              const sessionUserId = sessionStorage.getItem("wegrow_current_user_id");
+              if (sessionUserId) {
+                const updatedCurrent = next.find((u) => u.id === sessionUserId);
+                if (updatedCurrent) setCurrentUser(updatedCurrent);
+              }
             } catch {}
             return next;
           });
@@ -1869,9 +1925,21 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateUserRole = (id: string, newRole: AppUser["role"]) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, role: newRole } : u))
-    );
+    setUsers((prev) => {
+      const updated = prev.map((u) => (u.id === id ? { ...u, role: newRole } : u));
+      try {
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updated));
+      } catch {}
+      const target = updated.find((u) => u.id === id);
+      if (target && target.role === "Telecaller") {
+        fetch("/api/staff", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: target.name, role: "Telecalling Executive" }),
+        }).catch(() => {});
+      }
+      return updated;
+    });
     showToast({
       type: "info",
       title: "Role Updated",
@@ -1880,15 +1948,24 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleUserStatus = (id: string) => {
-    setUsers((prev) =>
-      prev.map((u) => {
+    setUsers((prev) => {
+      const updated = prev.map((u) => {
         if (u.id === id) {
-          const newStatus = u.status === "Active" ? "Inactive" : "Active";
-          return { ...u, status: newStatus };
+          const newStatus: "Active" | "Inactive" = u.status === "Active" ? "Inactive" : "Active";
+          fetch("/api/staff", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: u.name, status: newStatus, isFrozen: newStatus === "Inactive" }),
+          }).catch(() => {});
+          return { ...u, status: newStatus, isFrozen: newStatus === "Inactive" };
         }
         return u;
-      })
-    );
+      });
+      try {
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
     showToast({
       type: "info",
       title: "Status Changed",
@@ -1897,36 +1974,72 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateStaffAvatar = (staffName: string, avatarUrl: string) => {
+    const cleanTarget = staffName.trim().toLowerCase();
+
+    const matchedCaller = telecallers.find(
+      (t) => t.name.toLowerCase().trim() === cleanTarget || t.id.toLowerCase() === cleanTarget
+    );
+    const matchedUser = users.find(
+      (u) =>
+        u.name.toLowerCase().trim() === cleanTarget ||
+        u.name.toLowerCase().includes(cleanTarget) ||
+        u.id.toLowerCase() === cleanTarget
+    );
+    const resolvedName = matchedCaller?.name || matchedUser?.name || staffName.trim();
+    const isTelecallerAccount = Boolean(matchedCaller) || matchedUser?.role === "Telecaller";
+
     // 1. Update in telecallers list
     setTelecallers((prev) =>
       prev.map((t) =>
-        t.name.toLowerCase() === staffName.toLowerCase() || t.id.toLowerCase().includes(staffName.toLowerCase())
+        t.name.toLowerCase().trim() === cleanTarget || t.id.toLowerCase() === cleanTarget
           ? { ...t, avatar: avatarUrl }
           : t
       )
     );
 
-    // 2. Update in users list
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.name.toLowerCase().includes(staffName.toLowerCase())
+    // 2. Update in users list + persist wegrow_jobz_users_v2 + currentUser
+    setUsers((prev) => {
+      const updated = prev.map((u) =>
+        u.name.toLowerCase().trim() === cleanTarget ||
+        u.name.toLowerCase().includes(cleanTarget) ||
+        u.id.toLowerCase() === cleanTarget
           ? { ...u, avatar: avatarUrl }
           : u
-      )
-    );
+      );
+      try {
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
 
-    // 3. Persist in localStorage so it stays across refreshes
+    if (
+      currentUser &&
+      (currentUser.name.toLowerCase().trim() === cleanTarget ||
+        currentUser.name.toLowerCase().includes(cleanTarget))
+    ) {
+      setCurrentUser({ ...currentUser, avatar: avatarUrl });
+    }
+
+    // 3. Persist in localStorage avatars map + Server /api/staff + Supabase Cloud (for telecallers)
     try {
       const stored = localStorage.getItem("wegrow_staff_avatars");
       const map = stored ? JSON.parse(stored) : {};
-      map[staffName] = avatarUrl;
+      map[resolvedName] = avatarUrl;
       localStorage.setItem("wegrow_staff_avatars", JSON.stringify(map));
     } catch {}
 
+    if (isTelecallerAccount) {
+      fetch("/api/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: resolvedName, avatar: avatarUrl }),
+      }).catch(() => {});
+    }
+
     showToast({
       type: "success",
-      title: "Photo Updated",
-      message: `Profile picture for ${staffName} updated successfully.`,
+      title: "Photo Saved Permanently",
+      message: `Profile picture for ${resolvedName} saved to website & cloud.`,
     });
   };
 
@@ -2030,11 +2143,18 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const toggleTelecallerStatus = (id: string) => {
     setTelecallers((prev) =>
-      prev.map((t) =>
-        t.id === id || t.name.toLowerCase() === id.toLowerCase()
-          ? { ...t, status: t.status === "Active" ? "Inactive" : "Active" }
-          : t
-      )
+      prev.map((t) => {
+        if (t.id === id || t.name.toLowerCase() === id.toLowerCase()) {
+          const nextStatus: "Active" | "Inactive" = t.status === "Active" ? "Inactive" : "Active";
+          fetch("/api/staff", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: t.name, status: nextStatus, isFrozen: nextStatus === "Inactive" }),
+          }).catch(() => {});
+          return { ...t, status: nextStatus, isFrozen: nextStatus === "Inactive" };
+        }
+        return t;
+      })
     );
     showToast({
       type: "info",
@@ -2045,11 +2165,17 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateTelecallerTarget = (id: string, targetCalls: number) => {
     setTelecallers((prev) =>
-      prev.map((t) =>
-        t.id === id || t.name.toLowerCase() === id.toLowerCase()
-          ? { ...t, dailyTarget: targetCalls }
-          : t
-      )
+      prev.map((t) => {
+        if (t.id === id || t.name.toLowerCase() === id.toLowerCase()) {
+          fetch("/api/staff", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: t.name, dailyTarget: targetCalls }),
+          }).catch(() => {});
+          return { ...t, dailyTarget: targetCalls };
+        }
+        return t;
+      })
     );
     showToast({
       type: "success",
@@ -2598,14 +2724,25 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       try {
         localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updatedUsers));
+        if (updatedUser.avatar) {
+          const avRaw = localStorage.getItem("wegrow_staff_avatars");
+          const avMap = avRaw ? JSON.parse(avRaw) : {};
+          avMap[updatedUser.name] = updatedUser.avatar;
+          localStorage.setItem("wegrow_staff_avatars", JSON.stringify(avMap));
+        }
       } catch {}
 
-      // Persist to server /api/staff
-      fetch("/api/staff", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedUser),
-      }).catch(() => {});
+      // Persist to server /api/staff only for Telecaller accounts (keeps Owner/Admin out of mobile dialer list)
+      if (updatedUser.role === "Telecaller") {
+        fetch("/api/staff", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...updatedUser,
+            role: "Telecalling Executive",
+          }),
+        }).catch(() => {});
+      }
 
       showToast({
         type: "success",

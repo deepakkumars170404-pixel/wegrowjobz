@@ -28,8 +28,12 @@ async function syncStaffToSupabase(telecallers: any[], deletedNames: string[] = 
       status: t.status || "Active",
       isFrozen: Boolean(t.isFrozen || t.status === "Inactive"),
       mustChangePassword: Boolean(t.mustChangePassword),
-      avatar: t.avatar && !String(t.avatar).startsWith("data:") ? t.avatar : "",
+      avatar: t.avatar && String(t.avatar).length < 65000 ? t.avatar : "",
       dailyTarget: t.dailyTarget || 50,
+      whatsapp: t.whatsapp || "",
+      languages: Array.isArray(t.languages) ? t.languages : undefined,
+      specialization: t.specialization || "",
+      bio: t.bio || "",
     }));
 
     await client.from("jobz_leads").upsert(

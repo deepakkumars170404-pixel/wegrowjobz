@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
 import { AppUser } from "@/types";
+import { compressAvatarImage } from "@/lib/utils";
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -121,16 +122,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     );
   };
 
-  const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        setAvatar(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressAvatarImage(file);
+      setAvatar(compressed);
+    } finally {
+      e.target.value = "";
+    }
   };
 
   const handleSaveProfile = (e: React.FormEvent) => {

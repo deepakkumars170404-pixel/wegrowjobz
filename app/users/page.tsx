@@ -19,6 +19,7 @@ import {
 import { useCRM } from "@/context/CRMContext";
 import { AppUser } from "@/types";
 import { StaffAvatar } from "@/components/shared/StaffAvatar";
+import { compressAvatarImage } from "@/lib/utils";
 
 export default function UsersRolesPage() {
   const {
@@ -34,16 +35,16 @@ export default function UsersRolesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTargetUser, setUploadTargetUser] = useState<string | null>(null);
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !uploadTargetUser) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      updateStaffAvatar(uploadTargetUser, base64);
+    try {
+      const compressed = await compressAvatarImage(file);
+      updateStaffAvatar(uploadTargetUser, compressed);
+    } finally {
       setUploadTargetUser(null);
-    };
-    reader.readAsDataURL(file);
+      e.target.value = "";
+    }
   };
 
   const triggerUpload = (userName: string) => {

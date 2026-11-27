@@ -113,10 +113,22 @@ export const StaffSelectModal: React.FC<StaffSelectModalProps> = ({
 
   const handleSavePhoto = async () => {
     if (!photoUrlInput.trim()) return;
-    await StorageService.saveStaffAvatar(selected, photoUrlInput.trim());
-    setAvatarsMap((prev) => ({ ...prev, [selected]: photoUrlInput.trim() }));
+    const url = photoUrlInput.trim();
+    await StorageService.saveStaffAvatar(selected, url);
+    setAvatarsMap((prev) => ({ ...prev, [selected]: url }));
     setIsPhotoEditOpen(false);
     setPhotoUrlInput("");
+
+    try {
+      const baseUrl = await ApiService.getBaseUrl();
+      const targetUrl = baseUrl ? `${baseUrl}/api/staff` : "http://192.168.29.60:3001/api/staff";
+      fetch(targetUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: selected, avatar: url }),
+      }).catch(() => {});
+    } catch {}
+
     Alert.alert("Success", `Profile picture updated for ${selected}!`);
   };
 

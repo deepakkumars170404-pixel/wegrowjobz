@@ -30,6 +30,7 @@ import {
 import { useCRM } from "@/context/CRMContext";
 import { Telecaller } from "@/types";
 import { StaffAvatar } from "@/components/shared/StaffAvatar";
+import { compressAvatarImage } from "@/lib/utils";
 
 export default function TeamPerformancePage() {
   const {
@@ -70,20 +71,20 @@ export default function TeamPerformancePage() {
   const [fromCaller, setFromCaller] = useState("");
   const [toCaller, setToCaller] = useState("");
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !avatarUploadTarget) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      updateStaffAvatar(avatarUploadTarget, base64);
+    try {
+      const compressed = await compressAvatarImage(file);
+      updateStaffAvatar(avatarUploadTarget, compressed);
       if (selectedCaller && selectedCaller.name.toLowerCase() === avatarUploadTarget.toLowerCase()) {
-        setSelectedCaller({ ...selectedCaller, avatar: base64 });
+        setSelectedCaller({ ...selectedCaller, avatar: compressed });
       }
+    } finally {
       setAvatarUploadTarget(null);
-    };
-    reader.readAsDataURL(file);
+      e.target.value = "";
+    }
   };
 
   const triggerPhotoUpload = (callerName: string, e?: React.MouseEvent) => {
