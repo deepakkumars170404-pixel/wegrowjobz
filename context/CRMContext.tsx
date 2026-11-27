@@ -441,15 +441,71 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .catch(() => {});
 
-    // Sync telecallers from server storage (and merge into users for multi-device consistency)
+    // Sync telecallers from server storage (and reconcile unsynced localStorage Telecallers + deleted tombstones)
     fetch("/api/staff")
       .then((res) => res.json())
       .then((data) => {
-        if (data && Array.isArray(data.telecallers) && data.telecallers.length > 0) {
-          setTelecallers(data.telecallers);
+        if (data && Array.isArray(data.telecallers)) {
+          const deletedSet = new Set<string>(
+            Array.isArray(data.deletedStaffNames)
+              ? data.deletedStaffNames.map((n: string) => String(n || "").toLowerCase().trim()).filter(Boolean)
+              : []
+          );
+          const serverCallers: Telecaller[] = [...data.telecallers];
+          const serverNames = new Set(
+            serverCallers.map((t) => (t.name || "").toLowerCase().trim()).filter(Boolean)
+          );
+
           setUsers((prev) => {
-            const next = [...prev];
-            for (const tc of data.telecallers) {
+            // 1. Prune explicitly deleted staff from browser localStorage
+            const next: AppUser[] = prev.filter((u) => {
+              const nm = (u.name || "").toLowerCase().trim();
+              if (u.role === "Telecaller" && deletedSet.has(nm)) return false;
+              return true;
+            });
+
+            // 2. Self-heal any local Telecaller added in browser before server/cloud sync existed
+            const unsyncedLocal = next.filter(
+              (u) =>
+                u.role === "Telecaller" &&
+                u.name &&
+                !serverNames.has(u.name.toLowerCase().trim()) &&
+                !deletedSet.has(u.name.toLowerCase().trim())
+            );
+            for (const localTc of unsyncedLocal) {
+              const payload: Telecaller = {
+                id: localTc.id,
+                name: localTc.name.trim(),
+                email: localTc.email || `${localTc.name.toLowerCase().replace(/\s+/g, "")}@wegrowjobz.com`,
+                phone: localTc.phone || "",
+                avatar: localTc.avatar || "",
+                role: "Telecalling Executive",
+                assignedLeads: localTc.assignedLeads || 0,
+                dailyTarget: 50,
+                callsCompleted: 0,
+                connectedCalls: 0,
+                interestedLeads: 0,
+                followUpsCompleted: 0,
+                admissionsGenerated: 0,
+                conversionRate: 0,
+                rank: serverCallers.length + 1,
+                status: localTc.status || "Active",
+                isPunchedIn: true,
+                password: localTc.password || "1234",
+                isFrozen: localTc.isFrozen ?? false,
+                mustChangePassword: localTc.mustChangePassword ?? false,
+              };
+              serverCallers.push(payload);
+              serverNames.add(localTc.name.toLowerCase().trim());
+              fetch("/api/staff", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              }).catch(() => {});
+            }
+
+            // 3. Merge authoritative server callers into browser users
+            for (const tc of serverCallers) {
               const tcNameLower = (tc.name || "").toLowerCase().trim();
               if (!tcNameLower) continue;
               const existingIdx = next.findIndex(
@@ -487,6 +543,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             } catch {}
             return next;
           });
+
+          if (serverCallers.length > 0) {
+            setTelecallers(serverCallers);
+          }
         }
       })
       .catch(() => {});
@@ -500,7 +560,18 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "jobz_leads" },
-          () => {
+          (payload: any) => {
+            if (payload?.new?.id === "SYS-STAFF-REGISTRY") {
+              fetch("/api/staff")
+                .then((res) => res.json())
+                .then((data) => {
+                  if (data && Array.isArray(data.telecallers) && data.telecallers.length > 0) {
+                    setTelecallers(data.telecallers);
+                  }
+                })
+                .catch(() => {});
+              return;
+            }
             fetch("/api/leads")
               .then((res) => res.json())
               .then((data) => {

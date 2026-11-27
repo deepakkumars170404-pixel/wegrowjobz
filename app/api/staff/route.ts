@@ -14,7 +14,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-async function syncStaffToSupabase(telecallers: any[]) {
+async function syncStaffToSupabase(telecallers: any[], deletedNames: string[] = [], updatedAt?: string) {
   const client = supabaseAdmin || supabase;
   if (!isSupabaseConfigured() || !client) return;
   try {
@@ -41,7 +41,8 @@ async function syncStaffToSupabase(telecallers: any[]) {
         status: "Inactive",
         stage: "System",
         college_name: JSON.stringify(compact),
-        updated_at: new Date().toISOString(),
+        notice_period: JSON.stringify(deletedNames),
+        updated_at: updatedAt || new Date().toISOString(),
       },
       { onConflict: "id" }
     );
@@ -50,18 +51,35 @@ async function syncStaffToSupabase(telecallers: any[]) {
   }
 }
 
-async function readStaffFromSupabase(): Promise<any[] | null> {
+async function readStaffFromSupabase(): Promise<{
+  telecallers: any[];
+  deletedNames: string[];
+  updatedAt: string;
+} | null> {
   const client = supabaseAdmin || supabase;
   if (!isSupabaseConfigured() || !client) return null;
   try {
     const { data, error } = await client
       .from("jobz_leads")
-      .select("college_name")
+      .select("college_name, notice_period, updated_at")
       .eq("id", STAFF_REGISTRY_ID)
       .maybeSingle();
     if (!error && data?.college_name) {
       const parsed = JSON.parse(data.college_name);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      let deletedNames: string[] = [];
+      try {
+        if (data.notice_period) {
+          const dParsed = JSON.parse(data.notice_period);
+          if (Array.isArray(dParsed)) deletedNames = dParsed;
+        }
+      } catch {}
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return {
+          telecallers: parsed,
+          deletedNames,
+          updatedAt: data.updated_at || "",
+        };
+      }
     }
   } catch {}
   return null;
@@ -98,19 +116,40 @@ function writeStorage(data: any) {
 export async function GET() {
   try {
     const storage = readStorage();
-    let telecallers = Array.isArray(storage.telecallers) && storage.telecallers.length > 0
-      ? storage.telecallers
-      : null;
+    const localTelecallers: any[] | null =
+      Array.isArray(storage.telecallers) && storage.telecallers.length > 0
+        ? storage.telecallers
+        : null;
+    const localUpdatedAt = storage.staffUpdatedAt ? Date.parse(storage.staffUpdatedAt) : 0;
+    let deletedNames: string[] = Array.isArray(storage.deletedStaffNames)
+      ? storage.deletedStaffNames
+      : [];
 
-    if (!telecallers) {
-      const sbStaff = await readStaffFromSupabase();
-      telecallers = sbStaff && sbStaff.length > 0 ? sbStaff : [...initialTelecallers];
+    const sbData = await readStaffFromSupabase();
+    const sbUpdatedAt = sbData?.updatedAt ? Date.parse(sbData.updatedAt) : 0;
+
+    let telecallers: any[];
+    if (sbData && sbData.telecallers.length > 0 && (!localTelecallers || sbUpdatedAt > localUpdatedAt)) {
+      // Cloud registry is newer (e.g. serverless or added from another device)
+      telecallers = sbData.telecallers;
+      deletedNames = Array.from(new Set([...deletedNames, ...sbData.deletedNames]));
       storage.telecallers = telecallers;
+      storage.deletedStaffNames = deletedNames;
+      storage.staffUpdatedAt = sbData.updatedAt || new Date().toISOString();
       writeStorage(storage);
+    } else if (localTelecallers) {
+      telecallers = localTelecallers;
+      // Only push local up to Supabase if local is strictly newer or Supabase had no record
+      if (!sbData || localUpdatedAt > sbUpdatedAt) {
+        await syncStaffToSupabase(telecallers, deletedNames, storage.staffUpdatedAt);
+      }
+    } else {
+      telecallers = [...initialTelecallers];
+      storage.telecallers = telecallers;
+      storage.staffUpdatedAt = new Date().toISOString();
+      writeStorage(storage);
+      await syncStaffToSupabase(telecallers, deletedNames, storage.staffUpdatedAt);
     }
-
-    // Keep Supabase Cloud Staff Registry updated in background
-    await syncStaffToSupabase(telecallers);
 
     const staffNames = Array.from(new Set(telecallers.map((t: any) => t.name).filter(Boolean)));
 
@@ -120,6 +159,7 @@ export async function GET() {
         count: telecallers.length,
         telecallers,
         staffNames,
+        deletedStaffNames: deletedNames,
         updatedAt: storage.staffUpdatedAt || new Date().toISOString(),
       },
       { headers: corsHeaders }
@@ -136,9 +176,20 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const storage = readStorage();
-    let currentTelecallers = Array.isArray(storage.telecallers) && storage.telecallers.length > 0
-      ? storage.telecallers
-      : [...initialTelecallers];
+    const sbData = await readStaffFromSupabase();
+    const localUpdatedAt = storage.staffUpdatedAt ? Date.parse(storage.staffUpdatedAt) : 0;
+    const sbUpdatedAt = sbData?.updatedAt ? Date.parse(sbData.updatedAt) : 0;
+
+    let currentTelecallers =
+      sbData && sbData.telecallers.length > 0 && sbUpdatedAt > localUpdatedAt
+        ? sbData.telecallers
+        : Array.isArray(storage.telecallers) && storage.telecallers.length > 0
+        ? storage.telecallers
+        : [...initialTelecallers];
+
+    let deletedNames: string[] = Array.isArray(storage.deletedStaffNames)
+      ? storage.deletedStaffNames
+      : sbData?.deletedNames || [];
 
     if (body.telecallers && Array.isArray(body.telecallers)) {
       // Bulk update/replace
@@ -146,6 +197,7 @@ export async function POST(req: Request) {
     } else if (body.name) {
       // Single caller upsert
       const incomingName = body.name.trim();
+      deletedNames = deletedNames.filter((n) => n.toLowerCase() !== incomingName.toLowerCase());
       const existingIdx = currentTelecallers.findIndex(
         (t: any) => t.name.toLowerCase() === incomingName.toLowerCase() || (body.id && t.id === body.id)
       );
@@ -191,10 +243,12 @@ export async function POST(req: Request) {
       }
     }
 
+    const nowIso = new Date().toISOString();
     storage.telecallers = currentTelecallers;
-    storage.staffUpdatedAt = new Date().toISOString();
+    storage.deletedStaffNames = deletedNames;
+    storage.staffUpdatedAt = nowIso;
     writeStorage(storage);
-    await syncStaffToSupabase(currentTelecallers);
+    await syncStaffToSupabase(currentTelecallers, deletedNames, nowIso);
 
     const staffNames = Array.from(new Set(currentTelecallers.map((t: any) => t.name).filter(Boolean)));
 
@@ -204,6 +258,7 @@ export async function POST(req: Request) {
         count: currentTelecallers.length,
         telecallers: currentTelecallers,
         staffNames,
+        deletedStaffNames: deletedNames,
       },
       { headers: corsHeaders }
     );
@@ -224,17 +279,36 @@ export async function DELETE(req: Request) {
     let currentTelecallers = Array.isArray(storage.telecallers)
       ? storage.telecallers
       : [...initialTelecallers];
+    let deletedNames: string[] = Array.isArray(storage.deletedStaffNames)
+      ? storage.deletedStaffNames
+      : [];
 
     if (id || name) {
+      const removed = currentTelecallers.filter((t: any) => {
+        if (id && t.id === id) return true;
+        if (name && t.name.toLowerCase() === name.toLowerCase()) return true;
+        return false;
+      });
+      removed.forEach((r: any) => {
+        if (r?.name && !deletedNames.some((d) => d.toLowerCase() === r.name.toLowerCase())) {
+          deletedNames.push(r.name);
+        }
+      });
+      if (name && !deletedNames.some((d) => d.toLowerCase() === name.toLowerCase())) {
+        deletedNames.push(name);
+      }
+
       currentTelecallers = currentTelecallers.filter((t: any) => {
         if (id && t.id === id) return false;
         if (name && t.name.toLowerCase() === name.toLowerCase()) return false;
         return true;
       });
+      const nowIso = new Date().toISOString();
       storage.telecallers = currentTelecallers;
-      storage.staffUpdatedAt = new Date().toISOString();
+      storage.deletedStaffNames = deletedNames;
+      storage.staffUpdatedAt = nowIso;
       writeStorage(storage);
-      await syncStaffToSupabase(currentTelecallers);
+      await syncStaffToSupabase(currentTelecallers, deletedNames, nowIso);
     }
 
     const staffNames = Array.from(new Set(currentTelecallers.map((t: any) => t.name).filter(Boolean)));
@@ -245,6 +319,7 @@ export async function DELETE(req: Request) {
         count: currentTelecallers.length,
         telecallers: currentTelecallers,
         staffNames,
+        deletedStaffNames: deletedNames,
       },
       { headers: corsHeaders }
     );
