@@ -1031,47 +1031,31 @@
       "isFrozen": false,
       "mustChangePassword": false,
       "avatar": "",
-      "dailyTarget": 60
+      "dailyTarget": 60,
+      "whatsapp": "",
+      "specialization": "",
+      "bio": ""
     },
     {
-      "id": "caller-deepakkumar",
-      "name": "Deepak kumar",
-      "phone": "+91 98431 73678",
-      "email": "deepakkumar@wegrowjobz.com",
-      "role": "Telecalling Executive",
-      "password": "1234",
-      "status": "Active",
-      "isFrozen": false,
-      "mustChangePassword": false,
-      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
-      "dailyTarget": 50
-    },
-    {
-      "id": "TC-003",
+      "id": "tc-divya",
       "name": "Divya",
       "phone": "+91 98431 73678",
       "email": "divya@wegrowjobz.com",
-      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
       "role": "Telecalling Executive",
-      "assignedLeads": 0,
-      "dailyTarget": 50,
-      "callsCompleted": 0,
-      "connectedCalls": 0,
-      "interestedLeads": 0,
-      "followUpsCompleted": 0,
-      "admissionsGenerated": 0,
-      "conversionRate": 0,
-      "rank": 3,
-      "status": "Active",
-      "isPunchedIn": true,
-      "punchInTime": "09:30 AM",
-      "workingHours": "0h 0m",
       "password": "1234",
-      "mustChangePassword": false,
+      "status": "Active",
       "isFrozen": false,
-      "lastLoginAt": ""
+      "mustChangePassword": false,
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+      "dailyTarget": 50,
+      "whatsapp": "",
+      "specialization": "",
+      "bio": ""
     }
   ],
-  "staffUpdatedAt": "2026-11-27T04:39:30.942Z",
-  "deletedStaffNames": []
+  "staffUpdatedAt": "2026-11-27T06:02:46.269Z",
+  "deletedStaffNames": [
+    "Deepak kumar",
+    "caller-deepakkumar"
+  ]
 }

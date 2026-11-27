@@ -106,14 +106,16 @@ function readStorage() {
   return {};
 }
 
-function writeStorage(data: any) {
+function writeStorage(data: any): boolean {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(data, null, 2), "utf8");
+    return true;
   } catch (err) {
     console.error("Failed to write to crm_storage.json:", err);
+    return false;
   }
 }
 
@@ -132,18 +134,20 @@ export async function GET() {
     const sbData = await readStaffFromSupabase();
     const sbUpdatedAt = sbData?.updatedAt ? Date.parse(sbData.updatedAt) : 0;
 
-    let telecallers: any[];
-    if (sbData && sbData.telecallers.length > 0 && (!localTelecallers || sbUpdatedAt > localUpdatedAt)) {
-      // Cloud registry is newer (e.g. serverless or added from another device)
-      telecallers = sbData.telecallers;
+    if (sbData?.deletedNames) {
       deletedNames = Array.from(new Set([...deletedNames, ...sbData.deletedNames]));
+    }
+
+    let telecallers: any[];
+    if (sbData && Array.isArray(sbData.telecallers) && (!localTelecallers || sbUpdatedAt >= localUpdatedAt)) {
+      // Cloud registry is newer or equal -> trust Supabase as authoritative
+      telecallers = sbData.telecallers;
       storage.telecallers = telecallers;
       storage.deletedStaffNames = deletedNames;
       storage.staffUpdatedAt = sbData.updatedAt || new Date().toISOString();
       writeStorage(storage);
     } else if (localTelecallers) {
       telecallers = localTelecallers;
-      // Only push local up to Supabase if local is strictly newer or Supabase had no record
       if (!sbData || localUpdatedAt > sbUpdatedAt) {
         await syncStaffToSupabase(telecallers, deletedNames, storage.staffUpdatedAt);
       }
@@ -154,6 +158,14 @@ export async function GET() {
       writeStorage(storage);
       await syncStaffToSupabase(telecallers, deletedNames, storage.staffUpdatedAt);
     }
+
+    // Safety guard: never return any caller present in deletedNames
+    const deletedLower = new Set(deletedNames.map((n) => String(n || "").toLowerCase().trim()).filter(Boolean));
+    telecallers = telecallers.filter(
+      (t: any) =>
+        !deletedLower.has(String(t?.name || "").toLowerCase().trim()) &&
+        !deletedLower.has(String(t?.id || "").toLowerCase().trim())
+    );
 
     const staffNames = Array.from(new Set(telecallers.map((t: any) => t.name).filter(Boolean)));
 
@@ -185,23 +197,25 @@ export async function POST(req: Request) {
     const sbUpdatedAt = sbData?.updatedAt ? Date.parse(sbData.updatedAt) : 0;
 
     let currentTelecallers =
-      sbData && sbData.telecallers.length > 0 && sbUpdatedAt > localUpdatedAt
+      sbData && Array.isArray(sbData.telecallers) && sbUpdatedAt >= localUpdatedAt
         ? sbData.telecallers
         : Array.isArray(storage.telecallers) && storage.telecallers.length > 0
         ? storage.telecallers
         : [...initialTelecallers];
 
-    let deletedNames: string[] = Array.isArray(storage.deletedStaffNames)
-      ? storage.deletedStaffNames
-      : sbData?.deletedNames || [];
+    let deletedNames: string[] = Array.from(
+      new Set([...(Array.isArray(storage.deletedStaffNames) ? storage.deletedStaffNames : []), ...(sbData?.deletedNames || [])])
+    );
 
     if (body.telecallers && Array.isArray(body.telecallers)) {
       // Bulk update/replace
       currentTelecallers = body.telecallers;
     } else if (body.name) {
-      // Single caller upsert
+      // Single caller upsert (also clears tombstone if admin explicitly re-enrolls them)
       const incomingName = body.name.trim();
-      deletedNames = deletedNames.filter((n) => n.toLowerCase() !== incomingName.toLowerCase());
+      deletedNames = deletedNames.filter(
+        (n) => n.toLowerCase() !== incomingName.toLowerCase() && (!body.id || n.toLowerCase() !== String(body.id).toLowerCase())
+      );
       const existingIdx = currentTelecallers.findIndex(
         (t: any) => t.name.toLowerCase() === incomingName.toLowerCase() || (body.id && t.id === body.id)
       );
@@ -218,7 +232,8 @@ export async function POST(req: Request) {
             : prev.password || "1234",
         };
       } else {
-        const newId = body.id || `TC-${(currentTelecallers.length + 1).toString().padStart(3, "0")}`;
+        const slug = incomingName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12) || "staff";
+        const newId = body.id || `tc-${slug}-${Date.now().toString(36)}`;
         currentTelecallers.push({
           id: newId,
           name: incomingName,
@@ -280,12 +295,21 @@ export async function DELETE(req: Request) {
     const id = searchParams.get("id");
     const name = searchParams.get("name");
     const storage = readStorage();
-    let currentTelecallers = Array.isArray(storage.telecallers)
-      ? storage.telecallers
-      : [...initialTelecallers];
-    let deletedNames: string[] = Array.isArray(storage.deletedStaffNames)
-      ? storage.deletedStaffNames
-      : [];
+    const sbData = await readStaffFromSupabase();
+    const localUpdatedAt = storage.staffUpdatedAt ? Date.parse(storage.staffUpdatedAt) : 0;
+    const sbUpdatedAt = sbData?.updatedAt ? Date.parse(sbData.updatedAt) : 0;
+
+    // Cloud-first: never delete against a stale bundled crm_storage.json (which would resurrect previously deleted staff!)
+    let currentTelecallers =
+      sbData && Array.isArray(sbData.telecallers) && sbUpdatedAt >= localUpdatedAt
+        ? sbData.telecallers
+        : Array.isArray(storage.telecallers)
+        ? storage.telecallers
+        : [...initialTelecallers];
+
+    let deletedNames: string[] = Array.from(
+      new Set([...(Array.isArray(storage.deletedStaffNames) ? storage.deletedStaffNames : []), ...(sbData?.deletedNames || [])])
+    );
 
     if (id || name) {
       const removed = currentTelecallers.filter((t: any) => {
@@ -297,14 +321,23 @@ export async function DELETE(req: Request) {
         if (r?.name && !deletedNames.some((d) => d.toLowerCase() === r.name.toLowerCase())) {
           deletedNames.push(r.name);
         }
+        if (r?.id && !deletedNames.some((d) => d.toLowerCase() === String(r.id).toLowerCase())) {
+          deletedNames.push(String(r.id));
+        }
       });
       if (name && !deletedNames.some((d) => d.toLowerCase() === name.toLowerCase())) {
         deletedNames.push(name);
       }
+      if (id && !deletedNames.some((d) => d.toLowerCase() === id.toLowerCase())) {
+        deletedNames.push(id);
+      }
 
+      const deletedLower = new Set(deletedNames.map((n) => String(n || "").toLowerCase().trim()).filter(Boolean));
       currentTelecallers = currentTelecallers.filter((t: any) => {
         if (id && t.id === id) return false;
         if (name && t.name.toLowerCase() === name.toLowerCase()) return false;
+        if (deletedLower.has(String(t?.name || "").toLowerCase().trim())) return false;
+        if (deletedLower.has(String(t?.id || "").toLowerCase().trim())) return false;
         return true;
       });
       const nowIso = new Date().toISOString();

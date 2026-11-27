@@ -621,8 +621,29 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               fetch("/api/staff")
                 .then((res) => res.json())
                 .then((data) => {
-                  if (data && Array.isArray(data.telecallers) && data.telecallers.length > 0) {
+                  if (data && Array.isArray(data.telecallers)) {
                     setTelecallers(data.telecallers);
+                    const deletedSet = new Set<string>(
+                      Array.isArray(data.deletedStaffNames)
+                        ? data.deletedStaffNames.map((n: string) => String(n || "").toLowerCase().trim()).filter(Boolean)
+                        : []
+                    );
+                    const serverNames = new Set(
+                      data.telecallers.map((t: any) => String(t.name || "").toLowerCase().trim()).filter(Boolean)
+                    );
+                    setUsers((prev) => {
+                      const next = prev.filter((u) => {
+                        const nm = (u.name || "").toLowerCase().trim();
+                        if (u.role === "Telecaller" && (deletedSet.has(nm) || !serverNames.has(nm))) {
+                          return false;
+                        }
+                        return true;
+                      });
+                      try {
+                        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(next));
+                      } catch {}
+                      return next;
+                    });
                   }
                 })
                 .catch(() => {});
@@ -1847,9 +1868,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addUser = (userData: Omit<AppUser, "id" | "assignedLeads" | "joinedDate" | "lastActive">) => {
+    const slug = userData.name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12) || "user";
     const newUser: AppUser = {
       ...userData,
-      id: "usr-" + (users.length + 1),
+      id: `usr-${slug}-${Date.now().toString(36)}`,
       assignedLeads: 0,
       joinedDate: "Today",
       lastActive: "Just now",
@@ -2052,7 +2074,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     role?: "Senior Telecaller" | "Telecalling Executive" | "Admissions Counsellor";
     password?: string;
   }) => {
-    const id = "TC-" + (telecallers.length + 1).toString().padStart(3, "0");
+    const slug = callerData.name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12) || "staff";
+    const id = `tc-${slug}-${Date.now().toString(36)}`;
     const newCaller: Telecaller = {
       id,
       name: callerData.name,
@@ -2185,19 +2208,44 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteTelecaller = (idOrName: string) => {
+    const cleanTarget = idOrName.trim().toLowerCase();
+    const matchedCaller = telecallers.find(
+      (t) => t.id.toLowerCase() === cleanTarget || t.name.toLowerCase().trim() === cleanTarget
+    );
+    const resolvedName = matchedCaller?.name || idOrName.trim();
+    const resolvedId = matchedCaller?.id || idOrName.trim();
+
     setTelecallers((prev) =>
-      prev.filter((t) => t.id !== idOrName && t.name.toLowerCase() !== idOrName.toLowerCase())
+      prev.filter(
+        (t) =>
+          t.id.toLowerCase() !== cleanTarget &&
+          t.name.toLowerCase().trim() !== cleanTarget &&
+          t.name.toLowerCase().trim() !== resolvedName.toLowerCase().trim()
+      )
     );
-    setUsers((prev) =>
-      prev.filter((u) => u.id !== idOrName && u.name.toLowerCase() !== idOrName.toLowerCase())
-    );
-    fetch(`/api/staff?id=${encodeURIComponent(idOrName)}&name=${encodeURIComponent(idOrName)}`, {
-      method: "DELETE",
-    }).catch(() => {});
+    setUsers((prev) => {
+      const updated = prev.filter(
+        (u) =>
+          u.id.toLowerCase() !== cleanTarget &&
+          u.id.toLowerCase() !== resolvedId.toLowerCase() &&
+          u.name.toLowerCase().trim() !== cleanTarget &&
+          u.name.toLowerCase().trim() !== resolvedName.toLowerCase().trim()
+      );
+      try {
+        localStorage.setItem("wegrow_jobz_users_v2", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    fetch(
+      `/api/staff?id=${encodeURIComponent(resolvedId)}&name=${encodeURIComponent(resolvedName)}`,
+      { method: "DELETE" }
+    ).catch(() => {});
+
     showToast({
       type: "success",
       title: "Telecaller Removed",
-      message: "Telecaller account has been removed successfully.",
+      message: `${resolvedName} has been permanently removed from app & website.`,
     });
   };
 
